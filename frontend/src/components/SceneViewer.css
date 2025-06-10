@@ -1,0 +1,98 @@
+/* Scene Viewer Styles */
+
+.scene-viewer {
+  height: 100%;
+  width: 100%;
+  position: relative;
+  background: #000;
+}
+
+.scene-loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 200;
+  text-align: center;
+}
+
+.scene-loading .loading-spinner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.scene-loading .spinner {
+  width: 3rem;
+  height: 3rem;
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  border-top: 3px solid #fff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.scene-loading p {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.9rem;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.scene-error {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 200;
+  text-align: center;
+  background: rgba(0, 0, 0, 0.8);
+  padding: 2rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(10px);
+}
+
+.scene-error h3 {
+  color: #ff6b6b;
+  margin-bottom: 1rem;
+  font-size: 1.2rem;
+}
+
+.scene-error p {
+  color: rgba(255, 255, 255, 0.8);
+  line-height: 1.5;
+}
+
+.minimap {
+  position: absolute;
+  bottom: 7rem;
+  right: 2rem;
+  width: 200px;
+  height: 150px;
+  background: rgba(0, 0, 0, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 0.5rem;
+  overflow: hidden;
+  backdrop-filter: blur(10px);
+  z-index: 100;
+}
+
+.minimap img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.8;
+}
+
+@media (max-width: 768px) {
+  .minimap {
+    width: 150px;
+    height: 100px;
+    bottom: 5rem;
+    right: 1rem;
+  }
+} 
