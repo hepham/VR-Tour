@@ -24,6 +24,7 @@ const VRDemo: React.FC<VRDemoProps> = ({
   const [showControls, setShowControls] = useState(true);
   const [realTimeYaw, setRealTimeYaw] = useState(initialYaw);
   const [realTimePitch, setRealTimePitch] = useState(initialPitch);
+  const [useOptimization, setUseOptimization] = useState(false); // Start with optimization disabled
 
   const handleFullscreen = async () => {
     try {
@@ -215,6 +216,25 @@ const VRDemo: React.FC<VRDemoProps> = ({
             </button>
           </div>
 
+          <hr style={{ margin: '10px 0', borderColor: '#444' }} />
+          
+          <div style={{ marginBottom: '10px' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
+              <input
+                type="checkbox"
+                checked={useOptimization}
+                onChange={(e) => setUseOptimization(e.target.checked)}
+              />
+              Tối ưu hiệu suất (Cube Map)
+            </label>
+            <div style={{ fontSize: '11px', opacity: 0.7, marginTop: '5px' }}>
+              {useOptimization 
+                ? '✅ Chỉ tải phần ảnh cần thiết' 
+                : '⚠️ Tải toàn bộ ảnh panoramic'
+              }
+            </div>
+          </div>
+
           <div style={{ fontSize: '11px', opacity: 0.7 }}>
             <div>Yaw: 0°=Bắc, 90°=Đông, 180°=Nam, 270°=Tây</div>
             <div>Pitch: 0°=Thẳng, +90°=Lên, -90°=Xuống</div>
@@ -299,6 +319,7 @@ const VRDemo: React.FC<VRDemoProps> = ({
           onImageLoad={handleImageLoad}
           onImageError={handleImageError}
           onCameraChange={handleCameraChange}
+          useOptimization={useOptimization}
         />
 
         <Controls

@@ -3,6 +3,7 @@ import { Canvas, useFrame, useLoader } from '@react-three/fiber';
 import { OrbitControls, PerspectiveCamera } from '@react-three/drei';
 import { TextureLoader, Mesh, SphereGeometry, MeshBasicMaterial, RepeatWrapping, DoubleSide } from 'three';
 import { NavigationConnection } from '../types';
+import CubeMapSphere from './CubeMapSphere';
 import Hotspot from './Hotspot';
 
 interface VRSceneProps {
@@ -14,6 +15,7 @@ interface VRSceneProps {
   onImageLoad?: () => void;
   onImageError?: () => void;
   onCameraChange?: (yaw: number, pitch: number) => void;
+  useOptimization?: boolean; // New prop for enabling cube map optimization
 }
 
 const PanoramaSphere: React.FC<{
@@ -116,6 +118,7 @@ const VRScene: React.FC<VRSceneProps> = ({
   onImageLoad,
   onImageError,
   onCameraChange,
+  useOptimization = false,
 }) => {
   const controlsRef = useRef<any>(null);
 
@@ -209,10 +212,13 @@ const VRScene: React.FC<VRSceneProps> = ({
           target={[0, 0, 0]}
         />
 
-        <PanoramaSphere
+        <CubeMapSphere
           panoramaUrl={panoramaUrl}
+          currentYaw={initialYaw}
+          currentPitch={initialPitch}
           onImageLoad={onImageLoad}
           onImageError={onImageError}
+          useOptimization={useOptimization}
         />
 
         {/* Render hotspots */}
