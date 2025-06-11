@@ -88,6 +88,8 @@ const CubeMapSphere: React.FC<CubeMapSphereProps> = ({
           faceUrl,
           (texture) => {
             texture.flipY = false;
+            texture.colorSpace = 'srgb'; // Ensure proper color space
+            texture.generateMipmaps = false; // Preserve image quality
             setLoadedTextures(prev => ({ ...prev, [face]: texture }));
             console.log(`Loaded cube face: ${face}`);
             resolve();
@@ -106,7 +108,7 @@ const CubeMapSphere: React.FC<CubeMapSphereProps> = ({
     // Cleanup: unload textures for non-visible faces
     Object.keys(loadedTextures).forEach((faceKey) => {
       const face = faceKey as keyof CubeFaces;
-      if (!visibleFaces.includes(face)) {
+      if (!visibleFaces.includes(face as any)) {
         setLoadedTextures(prev => {
           const { [faceKey]: removed, ...rest } = prev;
           removed?.dispose?.();
@@ -134,6 +136,8 @@ const CubeMapSphere: React.FC<CubeMapSphereProps> = ({
       fallbackTexture.wrapS = fallbackTexture.wrapT = 1000; // RepeatWrapping
       fallbackTexture.repeat.set(-1, 1);
       fallbackTexture.flipY = true;
+      fallbackTexture.colorSpace = 'srgb'; // Ensure proper color space
+      fallbackTexture.generateMipmaps = false; // Preserve image quality
       onImageLoad?.();
     }
   }, [fallbackTexture, useOptimization, onImageLoad]);
@@ -146,6 +150,7 @@ const CubeMapSphere: React.FC<CubeMapSphereProps> = ({
         map: fallbackTexture,
         side: DoubleSide,
         transparent: true,
+        toneMapped: false, // Preserve original colors
       });
     }
 
@@ -158,6 +163,7 @@ const CubeMapSphere: React.FC<CubeMapSphereProps> = ({
         side: DoubleSide,
         transparent: true,
         opacity: texture ? 1 : 0, // Hide faces without texture
+        toneMapped: false, // Preserve original colors
       });
     });
   }, [loadedTextures, fallbackTexture, useOptimization]);

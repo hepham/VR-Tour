@@ -52,6 +52,8 @@ const PanoramaSphere: React.FC<{
             loadedTexture.wrapS = loadedTexture.wrapT = RepeatWrapping;
             loadedTexture.repeat.set(-1, -1); // Flip both horizontally and vertically
             loadedTexture.flipY = true; // Keep flipY as true
+            loadedTexture.colorSpace = 'srgb'; // Ensure proper color space
+            loadedTexture.generateMipmaps = false; // Preserve image quality
             
             setTexture(loadedTexture);
             setIsLoading(false);
@@ -104,6 +106,7 @@ const PanoramaSphere: React.FC<{
         map={texture} 
         side={DoubleSide} 
         toneMapped={false}
+        colorWrite={true}
       />
     </mesh>
   );
@@ -192,11 +195,21 @@ const VRScene: React.FC<VRSceneProps> = ({
   return (
     <div style={{ width: '100%', height: '100vh', backgroundColor: '#000000' }}>
       <Canvas 
-        gl={{ antialias: true, alpha: false }} 
+        gl={{ 
+          antialias: true, 
+          alpha: false,
+          outputColorSpace: 'srgb',
+          toneMapping: 0, // NoToneMapping
+          toneMappingExposure: 1.0
+        }} 
         camera={{ position: [0, 0, 0], fov: 75, near: 0.1, far: 1100 }}
         onCreated={({ camera, gl }) => {
           camera.position.set(0, 0, 0);
           gl.setSize(window.innerWidth, window.innerHeight);
+          // Disable tone mapping to preserve original colors
+          gl.toneMapping = 0; // THREE.NoToneMapping
+          gl.toneMappingExposure = 1.0;
+          gl.outputColorSpace = 'srgb';
         }}
       >
         <OrbitControls
