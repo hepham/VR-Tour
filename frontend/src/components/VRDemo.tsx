@@ -24,7 +24,8 @@ const VRDemo: React.FC<VRDemoProps> = ({
   const [showControls, setShowControls] = useState(true);
   const [realTimeYaw, setRealTimeYaw] = useState(initialYaw);
   const [realTimePitch, setRealTimePitch] = useState(initialPitch);
-  const [useOptimization, setUseOptimization] = useState(false); // Start with optimization disabled
+  const [zoomLevel, setZoomLevel] = useState(75); // Default FOV = 75 degrees
+
 
   const handleFullscreen = async () => {
     try {
@@ -110,6 +111,10 @@ const VRDemo: React.FC<VRDemoProps> = ({
     setRealTimePitch(pitch);
   };
 
+  const handleZoomChange = (zoom: number) => {
+    setZoomLevel(zoom);
+  };
+
   const copyCurrentPosition = () => {
     const positionText = `initialYaw={${realTimeYaw}} initialPitch={${realTimePitch}}`;
     navigator.clipboard.writeText(positionText).then(() => {
@@ -169,12 +174,41 @@ const VRDemo: React.FC<VRDemoProps> = ({
             />
           </div>
           
+          <div style={{ marginBottom: '10px' }}>
+            <label>Zoom Level: {Math.round((120 - zoomLevel) / 45 * 100)}%</label>
+            <input
+              type="range"
+              min="30"
+              max="120"
+              value={zoomLevel}
+              onChange={(e) => setZoomLevel(Number(e.target.value))}
+              style={{ width: '100%', marginTop: '5px' }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', opacity: 0.7, marginTop: '2px' }}>
+              <span>Zoom In</span>
+              <span>Normal</span>
+              <span>Zoom Out</span>
+            </div>
+          </div>
+          
           <div style={{ display: 'flex', gap: '5px', fontSize: '12px' }}>
             <button 
-              onClick={() => { setCurrentYaw(0); setCurrentPitch(0); }}
+              onClick={() => { setCurrentYaw(0); setCurrentPitch(0); setZoomLevel(75); }}
               style={{ padding: '5px 10px', fontSize: '12px' }}
             >
-              Reset
+              Reset All
+            </button>
+            <button 
+              onClick={() => setZoomLevel(45)}
+              style={{ padding: '5px 10px', fontSize: '12px', background: '#0a84ff', color: 'white', border: 'none', borderRadius: '3px' }}
+            >
+              🔍+ Zoom In
+            </button>
+            <button 
+              onClick={() => setZoomLevel(105)}
+              style={{ padding: '5px 10px', fontSize: '12px', background: '#ff6b35', color: 'white', border: 'none', borderRadius: '3px' }}
+            >
+              🔍- Zoom Out
             </button>
             <button 
               onClick={() => setShowControls(false)}
@@ -217,23 +251,6 @@ const VRDemo: React.FC<VRDemoProps> = ({
           </div>
 
           <hr style={{ margin: '10px 0', borderColor: '#444' }} />
-          
-          <div style={{ marginBottom: '10px' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
-              <input
-                type="checkbox"
-                checked={useOptimization}
-                onChange={(e) => setUseOptimization(e.target.checked)}
-              />
-              Tối ưu hiệu suất (Cube Map)
-            </label>
-            <div style={{ fontSize: '11px', opacity: 0.7, marginTop: '5px' }}>
-              {useOptimization 
-                ? '✅ Chỉ tải phần ảnh cần thiết' 
-                : '⚠️ Tải toàn bộ ảnh panoramic'
-              }
-            </div>
-          </div>
 
           <div style={{ fontSize: '11px', opacity: 0.7 }}>
             <div>Yaw: 0°=Bắc, 90°=Đông, 180°=Nam, 270°=Tây</div>
@@ -279,6 +296,8 @@ const VRDemo: React.FC<VRDemoProps> = ({
         <div>Loading: {isLoading ? 'Yes' : 'No'}</div>
         <div>Error: {error || 'None'}</div>
         <div>Real-time: {realTimeYaw}°, {realTimePitch}°</div>
+        <div>Zoom FOV: {zoomLevel}°</div>
+        <div>Rotate Speed: {Math.round((0.3 + ((zoomLevel - 30) / (120 - 30)) * 0.7) * 100)}%</div>
       </div>
 
       {isLoading && (
@@ -314,12 +333,13 @@ const VRDemo: React.FC<VRDemoProps> = ({
           panoramaUrl={panoramaUrl}
           initialYaw={currentYaw}
           initialPitch={currentPitch}
+          zoomLevel={zoomLevel}
           hotspots={demoHotspots}
           onHotspotClick={handleHotspotClick}
           onImageLoad={handleImageLoad}
           onImageError={handleImageError}
           onCameraChange={handleCameraChange}
-          useOptimization={useOptimization}
+          onZoomChange={handleZoomChange}
         />
 
         <Controls

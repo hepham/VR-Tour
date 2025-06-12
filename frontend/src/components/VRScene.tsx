@@ -1,22 +1,63 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { Canvas, useFrame, useLoader } from '@react-three/fiber';
-import { OrbitControls, PerspectiveCamera } from '@react-three/drei';
-import { TextureLoader, Mesh, SphereGeometry, MeshBasicMaterial, RepeatWrapping, DoubleSide } from 'three';
+import { Canvas, useLoader, useFrame, useThree } from '@react-three/fiber';
+import { OrbitControls } from '@react-three/drei';
+import { TextureLoader, Mesh, RepeatWrapping, DoubleSide } from 'three';
 import { NavigationConnection } from '../types';
-import CubeMapSphere from './CubeMapSphere';
 import Hotspot from './Hotspot';
 
 interface VRSceneProps {
   panoramaUrl: string;
   initialYaw: number;
   initialPitch: number;
+  zoomLevel?: number;
   hotspots: NavigationConnection[];
   onHotspotClick: (sceneId: number) => void;
   onImageLoad?: () => void;
   onImageError?: () => void;
   onCameraChange?: (yaw: number, pitch: number) => void;
-  useOptimization?: boolean; // New prop for enabling cube map optimization
+  onZoomChange?: (zoom: number) => void;
 }
+
+// Component to handle camera zoom updates with smooth transition and adaptive rotation speed
+const CameraController: React.FC<{ zoomLevel: number; controlsRef: React.RefObject<any> }> = ({ zoomLevel, controlsRef }) => {
+  const { camera } = useThree();
+  const targetFOV = useRef(zoomLevel);
+  
+  useEffect(() => {
+    targetFOV.current = zoomLevel;
+  }, [zoomLevel]);
+  
+  useFrame((state, delta) => {
+    // Update OrbitControls for smooth damping
+    if (controlsRef.current) {
+      controlsRef.current.update();
+      
+      // Adaptive rotation speed based on zoom level
+      // When zoomed in (low FOV), reduce rotation speed
+      // When zoomed out (high FOV), increase rotation speed
+      const normalizedZoom = (zoomLevel - 30) / (120 - 30); // 0-1 scale
+      const baseRotateSpeed = -0.5;
+      const adaptiveSpeed = baseRotateSpeed * (0.3 + normalizedZoom * 0.7); // 0.3x to 1.0x speed
+      
+      controlsRef.current.rotateSpeed = adaptiveSpeed;
+    }
+    
+    if ('fov' in camera) {
+      // Smooth interpolation to target FOV
+      const currentFOV = camera.fov;
+      const difference = targetFOV.current - currentFOV;
+      
+      if (Math.abs(difference) > 0.1) {
+        // Lerp with smooth factor (higher = faster transition)
+        const smoothFactor = 8.0;
+        camera.fov += difference * smoothFactor * delta;
+        camera.updateProjectionMatrix();
+      }
+    }
+  });
+  
+  return null;
+};
 
 const PanoramaSphere: React.FC<{
   panoramaUrl: string;
@@ -24,89 +65,32 @@ const PanoramaSphere: React.FC<{
   onImageError?: () => void;
 }> = ({ panoramaUrl, onImageLoad, onImageError }) => {
   const meshRef = useRef<Mesh>(null);
-  const [texture, setTexture] = useState<THREE.Texture | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
+  
+  // Use useLoader hook for reliable texture loading
+  const texture = useLoader(TextureLoader, panoramaUrl);
+  
   useEffect(() => {
-    if (!panoramaUrl) {
-      console.error('No panorama URL provided');
-      return;
+    if (texture) {
+      console.log('PanoramaSphere: Configuring loaded texture');
+      // Configure texture for proper 360° display
+      texture.wrapS = RepeatWrapping;
+      texture.wrapT = RepeatWrapping;
+      texture.repeat.set(-1, 1); // Flip horizontally to fix mirroring
+      texture.flipY = true; // Set to true for proper vertical orientation
+      texture.colorSpace = 'srgb';
+      texture.generateMipmaps = false;
+      onImageLoad?.();
+      console.log('PanoramaSphere: Texture configured successfully');
     }
-
-    console.log('Starting to load panorama:', panoramaUrl);
-    setIsLoading(true);
-
-    const loader = new TextureLoader();
-    
-    // Test if image exists first
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      console.log('Image preload successful, dimensions:', img.width, 'x', img.height);
-      
-              loader.load(
-          panoramaUrl,
-          (loadedTexture) => {
-            console.log('Texture loaded successfully');
-            // Configure texture for proper 360° display
-            loadedTexture.wrapS = loadedTexture.wrapT = RepeatWrapping;
-            loadedTexture.repeat.set(-1, -1); // Flip both horizontally and vertically
-            loadedTexture.flipY = true; // Keep flipY as true
-            loadedTexture.colorSpace = 'srgb'; // Ensure proper color space
-            loadedTexture.generateMipmaps = false; // Preserve image quality
-            
-            setTexture(loadedTexture);
-            setIsLoading(false);
-            onImageLoad?.();
-            console.log('Panorama texture loaded successfully:', panoramaUrl);
-          },
-        (progress) => {
-          console.log('Loading progress:', (progress.loaded / progress.total * 100) + '%');
-        },
-        (error) => {
-          console.error('Error loading panorama texture:', error);
-          console.error('Attempted to load URL:', panoramaUrl);
-          setIsLoading(false);
-          onImageError?.();
-        }
-      );
-    };
-    
-    img.onerror = () => {
-      console.error('Failed to preload image:', panoramaUrl);
-      setIsLoading(false);
-      onImageError?.();
-    };
-    
-    img.src = panoramaUrl;
-  }, [panoramaUrl, onImageLoad, onImageError]);
-
-  if (isLoading) {
-    return (
-      <mesh>
-        <sphereGeometry args={[500, 60, 40]} />
-        <meshBasicMaterial color="#333333" />
-      </mesh>
-    );
-  }
-
-  if (!texture) {
-    return (
-      <mesh>
-        <sphereGeometry args={[500, 60, 40]} />
-        <meshBasicMaterial color="#ff0000" />
-      </mesh>
-    );
-  }
+  }, [texture, onImageLoad]);
 
   return (
-    <mesh ref={meshRef} scale={[-1, -1, 1]} position={[0, 0, 0]}>
+    <mesh ref={meshRef} scale={[1, 1, 1]} position={[0, 0, 0]}>
       <sphereGeometry args={[500, 60, 40]} />
       <meshBasicMaterial 
         map={texture} 
         side={DoubleSide} 
         toneMapped={false}
-        colorWrite={true}
       />
     </mesh>
   );
@@ -116,14 +100,16 @@ const VRScene: React.FC<VRSceneProps> = ({
   panoramaUrl,
   initialYaw,
   initialPitch,
+  zoomLevel = 75,
   hotspots,
   onHotspotClick,
   onImageLoad,
   onImageError,
   onCameraChange,
-  useOptimization = false,
+  onZoomChange,
 }) => {
   const controlsRef = useRef<any>(null);
+  const cameraRef = useRef<any>(null);
 
   // Convert degrees to radians and set initial camera position
   const initialRotationY = (initialYaw * Math.PI) / 180;
@@ -180,6 +166,50 @@ const VRScene: React.FC<VRSceneProps> = ({
     }
   }, [onCameraChange]);
 
+  // Add wheel event listener for zoom with throttling
+  useEffect(() => {
+    let lastWheelTime = 0;
+    const throttleDelay = 16; // ~60fps throttling
+    
+    const handleWheel = (event: WheelEvent) => {
+      // Only handle wheel events when over canvas, not UI elements
+      if (!(event.target instanceof HTMLCanvasElement)) {
+        return;
+      }
+      
+      event.preventDefault();
+      
+      const now = Date.now();
+      if (now - lastWheelTime < throttleDelay) {
+        return;
+      }
+      lastWheelTime = now;
+      
+      const delta = event.deltaY;
+      const zoomStep = 3; // Smaller step for even smoother zooming
+      
+      let newZoom = zoomLevel;
+      if (delta > 0) {
+        // Scroll down = zoom out (increase FOV)
+        newZoom = Math.min(120, zoomLevel + zoomStep);
+      } else {
+        // Scroll up = zoom in (decrease FOV)
+        newZoom = Math.max(30, zoomLevel - zoomStep);
+      }
+      
+      if (newZoom !== zoomLevel) {
+        onZoomChange?.(newZoom);
+      }
+    };
+
+    // Add event listener to window instead of canvas to avoid conflicts
+    window.addEventListener('wheel', handleWheel, { passive: false });
+    
+    return () => {
+      window.removeEventListener('wheel', handleWheel);
+    };
+  }, [zoomLevel, onZoomChange]);
+
   // Convert spherical coordinates to 3D position for hotspots
   const sphericalToCartesian = (yaw: number, pitch: number, radius: number = 450) => {
     const yawRad = (yaw * Math.PI) / 180;
@@ -202,7 +232,7 @@ const VRScene: React.FC<VRSceneProps> = ({
           toneMapping: 0, // NoToneMapping
           toneMappingExposure: 1.0
         }} 
-        camera={{ position: [0, 0, 0], fov: 75, near: 0.1, far: 1100 }}
+        camera={{ position: [0, 0, 0], fov: zoomLevel, near: 0.1, far: 1100 }}
         onCreated={({ camera, gl }) => {
           camera.position.set(0, 0, 0);
           gl.setSize(window.innerWidth, window.innerHeight);
@@ -212,6 +242,8 @@ const VRScene: React.FC<VRSceneProps> = ({
           gl.outputColorSpace = 'srgb';
         }}
       >
+        <CameraController zoomLevel={zoomLevel} controlsRef={controlsRef} />
+        
         <OrbitControls
           ref={controlsRef}
           enablePan={false}
@@ -223,15 +255,14 @@ const VRScene: React.FC<VRSceneProps> = ({
           maxDistance={100}
           autoRotate={false}
           target={[0, 0, 0]}
+          enableDamping={true}
+          dampingFactor={0.05}
         />
 
-        <CubeMapSphere
+        <PanoramaSphere
           panoramaUrl={panoramaUrl}
-          currentYaw={initialYaw}
-          currentPitch={initialPitch}
           onImageLoad={onImageLoad}
           onImageError={onImageError}
-          useOptimization={useOptimization}
         />
 
         {/* Render hotspots */}
