@@ -4,14 +4,38 @@ import { OrbitControls } from '@react-three/drei';
 import { TextureLoader, Mesh, RepeatWrapping, DoubleSide } from 'three';
 import { NavigationConnection } from '../types';
 import Hotspot from './Hotspot';
+import CheckpointMarker from './CheckpointMarker';
+
+// Temporary checkpoint interface until types are properly imported
+interface Checkpoint {
+  id: number;
+  scene_id: number;
+  yaw: number;
+  pitch: number;
+  title: string;
+  description: string;
+  type: 'info' | 'video' | 'image' | 'gallery';
+  content: {
+    text?: string;
+    videoUrl?: string;
+    imageUrl?: string;
+    images?: string[];
+    audioUrl?: string;
+  };
+  size?: number;
+  color?: string;
+  icon?: string;
+}
 
 interface VRSceneProps {
   panoramaUrl: string;
-  initialYaw: number;
-  initialPitch: number;
+  yaw: number;
+  pitch: number;
   zoomLevel?: number;
   hotspots: NavigationConnection[];
+  checkpoints?: Checkpoint[];
   onHotspotClick: (sceneId: number) => void;
+  onCheckpointClick?: (checkpoint: Checkpoint) => void;
   onImageLoad?: () => void;
   onImageError?: () => void;
   onCameraChange?: (yaw: number, pitch: number) => void;
@@ -98,11 +122,13 @@ const PanoramaSphere: React.FC<{
 
 const VRScene: React.FC<VRSceneProps> = ({
   panoramaUrl,
-  initialYaw,
-  initialPitch,
+  yaw,
+  pitch,
   zoomLevel = 75,
   hotspots,
+  checkpoints = [],
   onHotspotClick,
+  onCheckpointClick,
   onImageLoad,
   onImageError,
   onCameraChange,
@@ -111,56 +137,60 @@ const VRScene: React.FC<VRSceneProps> = ({
   const controlsRef = useRef<any>(null);
   const cameraRef = useRef<any>(null);
 
-  // Convert degrees to radians and set initial camera position
-  const initialRotationY = (initialYaw * Math.PI) / 180;
-  const initialRotationX = (-initialPitch * Math.PI) / 180;
+  // Controlled camera rotation effect
+  React.useEffect(() => {
+    if (
+      typeof yaw === 'number' &&
+      typeof pitch === 'number' &&
+      controlsRef.current
+    ) {
+      // Yaw: azimuthal angle (horizontal), Pitch: polar angle (vertical)
+      // Azimuthal: 0 = -Z (forward), increases counterclockwise (right = positive)
+      // Polar: 0 = up, PI/2 = horizontal, PI = down
+      const azimuthalAngle = ((yaw - 90) * Math.PI) / 180; // adjust for your scene's forward direction
+      const polarAngle = ((90 - pitch) * Math.PI) / 180;   // 0 = up, 90 = horizontal, 180 = down
+
+      controlsRef.current.setAzimuthalAngle(azimuthalAngle);
+      controlsRef.current.setPolarAngle(polarAngle);
+      controlsRef.current.update();
+    }
+  }, [yaw, pitch]);
 
   // Function to calculate yaw and pitch from camera rotation
   const calculateCameraAngles = () => {
-    if (controlsRef.current && controlsRef.current.object) {
-      const camera = controlsRef.current.object;
-      
-      // Get camera's rotation in Euler angles
-      const yaw = ((camera.rotation.y * 180) / Math.PI + 360) % 360;
-      const pitch = (camera.rotation.x * 180) / Math.PI;
-      
+    if (controlsRef.current) {
+      const azimuthal = controlsRef.current.getAzimuthalAngle(); // radians
+      const polar = controlsRef.current.getPolarAngle(); // radians
+      const yaw = ((azimuthal * 180) / Math.PI + 90 + 360) % 360;
+      const pitch = 90 - (polar * 180) / Math.PI;
       return { yaw: Math.round(yaw), pitch: Math.round(pitch) };
     }
-    return { yaw: initialYaw, pitch: initialPitch };
+    return { yaw, pitch };
   };
-
-  useEffect(() => {
-    console.log('VRScene: Setting camera position - Yaw:', initialYaw, '° Pitch:', initialPitch, '°');
-    if (controlsRef.current) {
-      // Set camera rotation - add 180 degrees to Y to fix upside down
-      controlsRef.current.object.rotation.set(
-        initialRotationX, 
-        initialRotationY + Math.PI, // Add 180 degrees 
-        0
-      );
-      controlsRef.current.update();
-      console.log('Camera rotation set to:', controlsRef.current.object.rotation);
-    }
-  }, [initialYaw, initialPitch, initialRotationX, initialRotationY]);
 
   // Separate useEffect for event listeners
   useEffect(() => {
     if (controlsRef.current) {
       // Add event listener for camera changes
-      const handleCameraChange = () => {
-        const angles = calculateCameraAngles();
-        onCameraChange?.(angles.yaw, angles.pitch);
+      const handleCameraChange = (yaw: number, pitch: number) => {
+        onCameraChange?.(yaw, pitch);
       };
 
-      controlsRef.current.addEventListener('change', handleCameraChange);
+      controlsRef.current.addEventListener('change', () => {
+        const angles = calculateCameraAngles();
+        handleCameraChange(angles.yaw, angles.pitch);
+      });
       
       // Call once initially
-      handleCameraChange();
+      handleCameraChange(yaw, pitch);
 
       // Cleanup
       return () => {
         if (controlsRef.current) {
-          controlsRef.current.removeEventListener('change', handleCameraChange);
+          controlsRef.current.removeEventListener('change', () => {
+            const angles = calculateCameraAngles();
+            handleCameraChange(angles.yaw, angles.pitch);
+          });
         }
       };
     }
@@ -210,10 +240,12 @@ const VRScene: React.FC<VRSceneProps> = ({
     };
   }, [zoomLevel, onZoomChange]);
 
-  // Convert spherical coordinates to 3D position for hotspots
+  // Convert spherical coordinates to 3D position for hotspots and checkpoints
   const sphericalToCartesian = (yaw: number, pitch: number, radius: number = 450) => {
-    const yawRad = (yaw * Math.PI) / 180;
-    const pitchRad = (pitch * Math.PI) / 180;
+    // Adjust yaw to match camera coordinate system (add 180 degrees offset)
+    const adjustedYaw = yaw + 180;
+    const yawRad = (adjustedYaw * Math.PI) / 180;
+    const pitchRad = (-pitch * Math.PI) / 180; // Invert pitch to match camera
     
     const x = radius * Math.cos(pitchRad) * Math.sin(yawRad);
     const y = radius * Math.sin(pitchRad);
@@ -277,6 +309,20 @@ const VRScene: React.FC<VRSceneProps> = ({
             />
           );
         })}
+
+                          {/* Render checkpoints */}
+          {checkpoints.map((checkpoint) => {
+            const checkpointPosition = sphericalToCartesian(checkpoint.yaw, checkpoint.pitch) as [number, number, number];
+            console.log(`Checkpoint ${checkpoint.id} at yaw:${checkpoint.yaw}°, pitch:${checkpoint.pitch}° -> position:`, checkpointPosition);
+            return (
+              <CheckpointMarker
+                key={checkpoint.id}
+                position={checkpointPosition}
+                checkpoint={checkpoint}
+                onClick={() => onCheckpointClick?.(checkpoint)}
+              />
+            );
+          })}
       </Canvas>
     </div>
   );
