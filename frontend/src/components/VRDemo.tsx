@@ -213,9 +213,9 @@ Bên trong hố sụt có vi khí hậu đặc biệt với độ ẩm cao và n
   const handleCameraChange = (yaw: number, pitch: number) => {
     setRealTimeYaw(yaw);
     setRealTimePitch(pitch);
-    // Sync sliders if camera changed by mouse
-    if (Math.round(currentYaw) !== Math.round(yaw)) setCurrentYaw(yaw);
-    if (Math.round(currentPitch) !== Math.round(pitch)) setCurrentPitch(pitch);
+    // Chỉ cập nhật slider nếu lệch > 1 độ
+    if (Math.abs(Math.round(currentYaw) - Math.round(yaw)) > 1) setCurrentYaw(Math.round(yaw));
+    if (Math.abs(Math.round(currentPitch) - Math.round(pitch)) > 1) setCurrentPitch(Math.round(pitch));
   };
 
   const handleZoomChange = (zoom: number) => {
@@ -300,13 +300,24 @@ Bên trong hố sụt có vi khí hậu đặc biệt với độ ẩm cao và n
           
           <div style={{ display: 'flex', gap: '5px', fontSize: '12px' }}>
             <button 
-              onClick={() => { setCurrentYaw(0); setCurrentPitch(0); setZoomLevel(75); }}
+              onClick={() => { 
+                setCurrentYaw(0); 
+                setCurrentPitch(0); 
+                setRealTimeYaw(0);
+                setRealTimePitch(0);
+                setZoomLevel(75); 
+              }}
               style={{ padding: '5px 10px', fontSize: '12px' }}
             >
               Reset All
             </button>
             <button 
-              onClick={() => { setCurrentYaw(73); setCurrentPitch(-31); }}
+              onClick={() => { 
+                setCurrentYaw(73); 
+                setCurrentPitch(-31); 
+                setRealTimeYaw(73);
+                setRealTimePitch(-31);
+              }}
               style={{ padding: '5px 10px', fontSize: '12px', background: '#28a745', color: 'white', border: 'none', borderRadius: '3px' }}
             >
               🏠 Original View

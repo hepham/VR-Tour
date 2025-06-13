@@ -56,13 +56,10 @@ const CameraController: React.FC<{ zoomLevel: number; controlsRef: React.RefObje
     if (controlsRef.current) {
       controlsRef.current.update();
       
-      // Adaptive rotation speed based on zoom level
-      // When zoomed in (low FOV), reduce rotation speed
-      // When zoomed out (high FOV), increase rotation speed
+      // Tăng tốc độ xoay cho cảm giác mượt hơn
       const normalizedZoom = (zoomLevel - 30) / (120 - 30); // 0-1 scale
-      const baseRotateSpeed = -0.5;
-      const adaptiveSpeed = baseRotateSpeed * (0.3 + normalizedZoom * 0.7); // 0.3x to 1.0x speed
-      
+      const baseRotateSpeed = 1.2; // tăng tốc độ cơ bản
+      const adaptiveSpeed = baseRotateSpeed * (0.6 + normalizedZoom * 0.7); // min 0.6x, max 1.3x
       controlsRef.current.rotateSpeed = adaptiveSpeed;
     }
     
