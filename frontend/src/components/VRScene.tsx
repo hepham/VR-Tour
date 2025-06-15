@@ -43,24 +43,90 @@ interface VRSceneProps {
 }
 
 // Component to handle camera zoom updates with smooth transition and adaptive rotation speed
-const CameraController: React.FC<{ zoomLevel: number; controlsRef: React.RefObject<any> }> = ({ zoomLevel, controlsRef }) => {
+const CameraController: React.FC<{ 
+  zoomLevel: number; 
+  controlsRef: React.RefObject<any>;
+  targetYaw: number;
+  targetPitch: number;
+  onCameraChange?: (yaw: number, pitch: number) => void;
+}> = ({ zoomLevel, controlsRef, targetYaw, targetPitch, onCameraChange }) => {
   const { camera } = useThree();
   const targetFOV = useRef(zoomLevel);
+  const currentYaw = useRef(targetYaw);
+  const currentPitch = useRef(targetPitch);
+  const isUserInteracting = useRef(false);
+  const lastUpdateTime = useRef(0);
   
   useEffect(() => {
     targetFOV.current = zoomLevel;
   }, [zoomLevel]);
+
+  // Track user interaction
+  useEffect(() => {
+    if (controlsRef.current) {
+      const onStart = () => {
+        isUserInteracting.current = true;
+        // Tăng damping factor khi bắt đầu tương tác
+        controlsRef.current.dampingFactor = 0.1;
+      };
+      const onEnd = () => {
+        isUserInteracting.current = false;
+        // Giảm damping factor khi kết thúc tương tác
+        controlsRef.current.dampingFactor = 0.05;
+        // Update current values to match controls when user stops interacting
+        const azimuthal = controlsRef.current.getAzimuthalAngle();
+        const polar = controlsRef.current.getPolarAngle();
+        currentYaw.current = ((azimuthal * 180) / Math.PI + 90 + 360) % 360;
+        currentPitch.current = 90 - (polar * 180) / Math.PI;
+      };
+
+      controlsRef.current.addEventListener('start', onStart);
+      controlsRef.current.addEventListener('end', onEnd);
+
+      return () => {
+        controlsRef.current?.removeEventListener('start', onStart);
+        controlsRef.current?.removeEventListener('end', onEnd);
+      };
+    }
+  }, [controlsRef]);
   
   useFrame((state, delta) => {
-    // Update OrbitControls for smooth damping
     if (controlsRef.current) {
+      const now = performance.now();
+      const timeSinceLastUpdate = now - lastUpdateTime.current;
+      lastUpdateTime.current = now;
+
+      // Update controls
       controlsRef.current.update();
       
-      // Tăng tốc độ xoay cho cảm giác mượt hơn
-      const normalizedZoom = (zoomLevel - 30) / (120 - 30); // 0-1 scale
-      const baseRotateSpeed = 1.2; // tăng tốc độ cơ bản
-      const adaptiveSpeed = baseRotateSpeed * (0.6 + normalizedZoom * 0.7); // min 0.6x, max 1.3x
+      if (!isUserInteracting.current) {
+        // Only lerp when user is not interacting
+        const lerpFactor = Math.min(1.0, 1.5 * delta); // Giảm tốc độ lerp từ 3.0 xuống 1.5
+        currentYaw.current += (targetYaw - currentYaw.current) * lerpFactor;
+        currentPitch.current += (targetPitch - currentPitch.current) * lerpFactor;
+
+        // Convert to radians and set camera angles
+        const azimuthalAngle = ((currentYaw.current - 90) * Math.PI) / 180;
+        const polarAngle = ((90 - currentPitch.current) * Math.PI) / 180;
+
+        controlsRef.current.setAzimuthalAngle(azimuthalAngle);
+        controlsRef.current.setPolarAngle(polarAngle);
+      }
+      
+      // Adjust rotation speed based on zoom level and interaction state
+      const normalizedZoom = (zoomLevel - 30) / (120 - 30);
+      const baseRotateSpeed = isUserInteracting.current ? 0.8 : 1.2; // Giảm tốc độ khi đang tương tác
+      const adaptiveSpeed = baseRotateSpeed * (0.5 + normalizedZoom * 0.5); // Giảm range của tốc độ
       controlsRef.current.rotateSpeed = adaptiveSpeed;
+
+      // Get current angles from controls
+      const azimuthal = controlsRef.current.getAzimuthalAngle();
+      const polar = controlsRef.current.getPolarAngle();
+      const currentYawValue = ((azimuthal * 180) / Math.PI + 90 + 360) % 360;
+      const currentPitchValue = 90 - (polar * 180) / Math.PI;
+
+      // Notify parent of camera changes
+      onCameraChange?.(currentYawValue, currentPitchValue);
     }
     
     if ('fov' in camera) {
@@ -69,8 +135,7 @@ const CameraController: React.FC<{ zoomLevel: number; controlsRef: React.RefObje
       const difference = targetFOV.current - currentFOV;
       
       if (Math.abs(difference) > 0.1) {
-        // Lerp with smooth factor (higher = faster transition)
-        const smoothFactor = 8.0;
+        const smoothFactor = 6.0; // Giảm tốc độ zoom
         camera.fov += difference * smoothFactor * delta;
         camera.updateProjectionMatrix();
       }
@@ -133,25 +198,6 @@ const VRScene: React.FC<VRSceneProps> = ({
 }) => {
   const controlsRef = useRef<any>(null);
   const cameraRef = useRef<any>(null);
-
-  // Controlled camera rotation effect
-  React.useEffect(() => {
-    if (
-      typeof yaw === 'number' &&
-      typeof pitch === 'number' &&
-      controlsRef.current
-    ) {
-      // Yaw: azimuthal angle (horizontal), Pitch: polar angle (vertical)
-      // Azimuthal: 0 = -Z (forward), increases counterclockwise (right = positive)
-      // Polar: 0 = up, PI/2 = horizontal, PI = down
-      const azimuthalAngle = ((yaw - 90) * Math.PI) / 180; // adjust for your scene's forward direction
-      const polarAngle = ((90 - pitch) * Math.PI) / 180;   // 0 = up, 90 = horizontal, 180 = down
-
-      controlsRef.current.setAzimuthalAngle(azimuthalAngle);
-      controlsRef.current.setPolarAngle(polarAngle);
-      controlsRef.current.update();
-    }
-  }, [yaw, pitch]);
 
   // Function to calculate yaw and pitch from camera rotation
   const calculateCameraAngles = () => {
@@ -271,7 +317,13 @@ const VRScene: React.FC<VRSceneProps> = ({
           gl.outputColorSpace = 'srgb';
         }}
       >
-        <CameraController zoomLevel={zoomLevel} controlsRef={controlsRef} />
+        <CameraController 
+          zoomLevel={zoomLevel} 
+          controlsRef={controlsRef} 
+          targetYaw={yaw}
+          targetPitch={pitch}
+          onCameraChange={onCameraChange}
+        />
         
         <OrbitControls
           ref={controlsRef}
@@ -285,7 +337,9 @@ const VRScene: React.FC<VRSceneProps> = ({
           autoRotate={false}
           target={[0, 0, 0]}
           enableDamping={true}
-          dampingFactor={0.05}
+          dampingFactor={0.03}
+          minPolarAngle={0.1}
+          maxPolarAngle={Math.PI - 0.1}
         />
 
         <PanoramaSphere
@@ -307,19 +361,18 @@ const VRScene: React.FC<VRSceneProps> = ({
           );
         })}
 
-                          {/* Render checkpoints */}
-          {checkpoints.map((checkpoint) => {
-            const checkpointPosition = sphericalToCartesian(checkpoint.yaw, checkpoint.pitch) as [number, number, number];
-            console.log(`Checkpoint ${checkpoint.id} at yaw:${checkpoint.yaw}°, pitch:${checkpoint.pitch}° -> position:`, checkpointPosition);
-            return (
-              <CheckpointMarker
-                key={checkpoint.id}
-                position={checkpointPosition}
-                checkpoint={checkpoint}
-                onClick={() => onCheckpointClick?.(checkpoint)}
-              />
-            );
-          })}
+        {/* Render checkpoints */}
+        {checkpoints.map((checkpoint) => {
+          const checkpointPosition = sphericalToCartesian(checkpoint.yaw, checkpoint.pitch) as [number, number, number];
+          return (
+            <CheckpointMarker
+              key={checkpoint.id}
+              position={checkpointPosition}
+              checkpoint={checkpoint}
+              onClick={() => onCheckpointClick?.(checkpoint)}
+            />
+          );
+        })}
       </Canvas>
     </div>
   );

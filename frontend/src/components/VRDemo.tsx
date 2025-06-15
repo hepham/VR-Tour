@@ -26,7 +26,7 @@ const VRDemo: React.FC<VRDemoProps> = ({
   const [showControls, setShowControls] = useState(true);
   const [realTimeYaw, setRealTimeYaw] = useState(initialYaw);
   const [realTimePitch, setRealTimePitch] = useState(initialPitch);
-  const [zoomLevel, setZoomLevel] = useState(75); // Default FOV = 75 degrees
+  const [zoomLevel, setZoomLevel] = useState(100); // Default FOV = 75 degrees
   const [selectedCheckpoint, setSelectedCheckpoint] = useState<any>(null);
   const [isCheckpointModalOpen, setIsCheckpointModalOpen] = useState(false);
   const [isCheckpointListVisible, setIsCheckpointListVisible] = useState(false);
@@ -453,13 +453,66 @@ Bên trong hố sụt có vi khí hậu đặc biệt với độ ẩm cao và n
       </div>
 
       {isLoading && (
-        <div className="demo-loading">
-          <div className="loading-spinner">
-            <div className="spinner"></div>
-            <p>Loading 360° Demo...</p>
-            <p style={{ fontSize: '12px', opacity: 0.7 }}>
-              Loading: {panoramaUrl}
-            </p>
+        <div style={{
+          position: 'fixed !important' as any,
+          top: '0 !important' as any,
+          left: '0 !important' as any,
+          right: '0 !important' as any,
+          bottom: '0 !important' as any,
+          width: '100vw !important' as any,
+          height: '100vh !important' as any,
+          display: 'flex !important' as any,
+          justifyContent: 'center !important' as any,
+          alignItems: 'center !important' as any,
+          background: 'rgba(0, 0, 0, 0.8) !important' as any,
+          zIndex: '9999 !important' as any,
+          margin: '0 !important' as any,
+          padding: '0 !important' as any
+        }}>
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column' as const,
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '20px',
+            textAlign: 'center' as const
+          }}>
+            <div style={{
+              width: '50px',
+              height: '50px',
+              position: 'relative' as const,
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center'
+            }}>
+              <div style={{
+                position: 'absolute' as const,
+                width: '100%',
+                height: '100%',
+                border: '4px solid rgba(255, 255, 255, 0.1)',
+                borderTop: '4px solid #fff',
+                borderRadius: '50%',
+                animation: 'spin 1s linear infinite'
+              }}></div>
+            </div>
+            <div style={{
+              textAlign: 'center' as const,
+              color: 'white'
+            }}>
+              <p style={{ 
+                fontSize: '18px', 
+                margin: '0 0 10px 0',
+                fontWeight: '500'
+              }}>Loading 360° Demo...</p>
+              <p style={{ 
+                fontSize: '12px', 
+                opacity: 0.7,
+                margin: 0,
+                fontFamily: 'monospace'
+              }}>
+                Loading: {panoramaUrl}
+              </p>
+            </div>
           </div>
         </div>
       )}
@@ -528,6 +581,15 @@ Bên trong hố sụt có vi khí hậu đặc biệt với độ ẩm cao và n
         isOpen={isCheckpointModalOpen}
         onClose={handleCloseCheckpointModal}
       />
+
+      <style>
+        {`
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        `}
+      </style>
     </div>
   );
 };
