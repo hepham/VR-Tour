@@ -56,6 +56,10 @@ const CameraController: React.FC<{
   const currentPitch = useRef(targetPitch);
   const isUserInteracting = useRef(false);
   const lastUpdateTime = useRef(0);
+  const lastZoomLevel = useRef(zoomLevel);
+  const lastNotificationTime = useRef(0);
+  const lastCameraValues = useRef({ yaw: targetYaw, pitch: targetPitch });
+  const finalUpdateTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   useEffect(() => {
     targetFOV.current = zoomLevel;
@@ -68,6 +72,12 @@ const CameraController: React.FC<{
         isUserInteracting.current = true;
         // Tăng damping factor khi bắt đầu tương tác
         controlsRef.current.dampingFactor = 0.1;
+        
+        // Clear any pending final update
+        if (finalUpdateTimeout.current) {
+          clearTimeout(finalUpdateTimeout.current);
+          finalUpdateTimeout.current = null;
+        }
       };
       const onEnd = () => {
         isUserInteracting.current = false;
@@ -78,6 +88,14 @@ const CameraController: React.FC<{
         const polar = controlsRef.current.getPolarAngle();
         currentYaw.current = ((azimuthal * 180) / Math.PI + 90 + 360) % 360;
         currentPitch.current = 90 - (polar * 180) / Math.PI;
+        
+        // Schedule a final update after user stops interacting
+        finalUpdateTimeout.current = setTimeout(() => {
+          const currentYawValue = ((azimuthal * 180) / Math.PI + 90 + 360) % 360;
+          const currentPitchValue = 90 - (polar * 180) / Math.PI;
+          lastCameraValues.current = { yaw: currentYawValue, pitch: currentPitchValue };
+          onCameraChange?.(currentYawValue, currentPitchValue);
+        }, 100); // Wait 100ms after interaction ends
       };
 
       controlsRef.current.addEventListener('start', onStart);
@@ -86,22 +104,30 @@ const CameraController: React.FC<{
       return () => {
         controlsRef.current?.removeEventListener('start', onStart);
         controlsRef.current?.removeEventListener('end', onEnd);
+        
+        // Clear any pending timeouts
+        if (finalUpdateTimeout.current) {
+          clearTimeout(finalUpdateTimeout.current);
+          finalUpdateTimeout.current = null;
+        }
       };
     }
   }, [controlsRef]);
   
   useFrame((state, delta) => {
-    if (controlsRef.current) {
-      const now = performance.now();
-      const timeSinceLastUpdate = now - lastUpdateTime.current;
-      lastUpdateTime.current = now;
+    if (!controlsRef.current) return;
 
-      // Update controls
-      controlsRef.current.update();
+    // Update controls (this is necessary for OrbitControls to work)
+    controlsRef.current.update();
+    
+    // Only do expensive calculations when not interacting or when significant change is needed
+    if (!isUserInteracting.current) {
+      // Only lerp when user is not interacting and there's a significant difference
+      const yawDiff = Math.abs(targetYaw - currentYaw.current);
+      const pitchDiff = Math.abs(targetPitch - currentPitch.current);
       
-      if (!isUserInteracting.current) {
-        // Only lerp when user is not interacting
-        const lerpFactor = Math.min(1.0, 1.5 * delta); // Giảm tốc độ lerp từ 3.0 xuống 1.5
+      if (yawDiff > 0.5 || pitchDiff > 0.5) {
+        const lerpFactor = Math.min(1.0, 1.5 * delta);
         currentYaw.current += (targetYaw - currentYaw.current) * lerpFactor;
         currentPitch.current += (targetPitch - currentPitch.current) * lerpFactor;
 
@@ -112,30 +138,46 @@ const CameraController: React.FC<{
         controlsRef.current.setAzimuthalAngle(azimuthalAngle);
         controlsRef.current.setPolarAngle(polarAngle);
       }
-      
-      // Adjust rotation speed based on zoom level and interaction state
+    }
+    
+    // Only update rotation speed when zoom level changes significantly
+    if (Math.abs(zoomLevel - lastZoomLevel.current) > 1) {
       const normalizedZoom = (zoomLevel - 30) / (120 - 30);
-      const baseRotateSpeed = isUserInteracting.current ? 0.8 : 1.2; // Giảm tốc độ khi đang tương tác
-      const adaptiveSpeed = baseRotateSpeed * (0.5 + normalizedZoom * 0.5); // Giảm range của tốc độ
+      const baseRotateSpeed = isUserInteracting.current ? 0.8 : 1.2;
+      const adaptiveSpeed = baseRotateSpeed * (0.5 + normalizedZoom * 0.5);
       controlsRef.current.rotateSpeed = adaptiveSpeed;
+      lastZoomLevel.current = zoomLevel;
+    }
 
-      // Get current angles from controls
+    // Aggressive throttling for camera change notifications
+    const now = performance.now();
+    // Use much longer throttling during user interaction to improve performance
+    const throttleInterval = isUserInteracting.current ? 100 : 16; // 10fps during interaction, 60fps when idle
+    
+    if (now - lastNotificationTime.current > throttleInterval) {
       const azimuthal = controlsRef.current.getAzimuthalAngle();
       const polar = controlsRef.current.getPolarAngle();
       const currentYawValue = ((azimuthal * 180) / Math.PI + 90 + 360) % 360;
       const currentPitchValue = 90 - (polar * 180) / Math.PI;
-
-      // Notify parent of camera changes
-      onCameraChange?.(currentYawValue, currentPitchValue);
+      
+      // Only call onCameraChange if values have changed significantly
+      const yawChange = Math.abs(currentYawValue - lastCameraValues.current.yaw);
+      const pitchChange = Math.abs(currentPitchValue - lastCameraValues.current.pitch);
+      
+      if (yawChange > 1 || pitchChange > 1) {
+        lastCameraValues.current = { yaw: currentYawValue, pitch: currentPitchValue };
+        onCameraChange?.(currentYawValue, currentPitchValue);
+        lastNotificationTime.current = now;
+      }
     }
     
+    // Smooth FOV interpolation - only when needed
     if ('fov' in camera) {
-      // Smooth interpolation to target FOV
       const currentFOV = camera.fov;
       const difference = targetFOV.current - currentFOV;
       
       if (Math.abs(difference) > 0.1) {
-        const smoothFactor = 6.0; // Giảm tốc độ zoom
+        const smoothFactor = 6.0;
         camera.fov += difference * smoothFactor * delta;
         camera.updateProjectionMatrix();
       }
@@ -151,12 +193,18 @@ const PanoramaSphere: React.FC<{
   onImageError?: () => void;
 }> = ({ panoramaUrl, onImageLoad, onImageError }) => {
   const meshRef = useRef<Mesh>(null);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   
   // Use useLoader hook for reliable texture loading
   const texture = useLoader(TextureLoader, panoramaUrl);
   
+  // Reset hasLoadedOnce when panoramaUrl changes
   useEffect(() => {
-    if (texture) {
+    setHasLoadedOnce(false);
+  }, [panoramaUrl]);
+
+  useEffect(() => {
+    if (texture && !hasLoadedOnce) {
       console.log('PanoramaSphere: Configuring loaded texture');
       // Configure texture for proper 360° display
       texture.wrapS = RepeatWrapping;
@@ -165,14 +213,15 @@ const PanoramaSphere: React.FC<{
       texture.flipY = true; // Set to true for proper vertical orientation
       texture.colorSpace = 'srgb';
       texture.generateMipmaps = false;
+      setHasLoadedOnce(true);
       onImageLoad?.();
       console.log('PanoramaSphere: Texture configured successfully');
     }
-  }, [texture, onImageLoad]);
+  }, [texture, onImageLoad, hasLoadedOnce]);
 
   return (
     <mesh ref={meshRef} scale={[1, 1, 1]} position={[0, 0, 0]}>
-      <sphereGeometry args={[500, 60, 40]} />
+      <sphereGeometry args={[500, 32, 16]} />
       <meshBasicMaterial 
         map={texture} 
         side={DoubleSide} 
