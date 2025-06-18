@@ -1,0 +1,294 @@
+import React, { useState } from 'react';
+import { Scene, NavigationConnection } from '../../../types';
+import './styles.css';
+
+interface RightSidebarHotspotEditorProps {
+  scene: Scene;
+  onUpdateScene: (updates: Partial<Scene>) => void;
+}
+
+interface HotspotIcon {
+  id: string;
+  icon: string;
+  label: string;
+  category: 'navigation' | 'information' | 'media';
+}
+
+const HOTSPOT_ICONS: HotspotIcon[] = [
+  // Navigation
+  { id: 'arrow', icon: '➡️', label: 'Arrow', category: 'navigation' },
+  { id: 'door', icon: '🚪', label: 'Door', category: 'navigation' },
+  { id: 'stairs', icon: '🏃‍♂️', label: 'Stairs', category: 'navigation' },
+  { id: 'elevator', icon: '🛗', label: 'Elevator', category: 'navigation' },
+  
+  // Information
+  { id: 'info', icon: 'ℹ️', label: 'Information', category: 'information' },
+  { id: 'question', icon: '❓', label: 'Question', category: 'information' },
+  { id: 'warning', icon: '⚠️', label: 'Warning', category: 'information' },
+  { id: 'star', icon: '⭐', label: 'Featured', category: 'information' },
+  
+  // Media
+  { id: 'image', icon: '🖼️', label: 'Image', category: 'media' },
+  { id: 'video', icon: '🎥', label: 'Video', category: 'media' },
+  { id: 'audio', icon: '🔊', label: 'Audio', category: 'media' },
+  { id: 'document', icon: '📄', label: 'Document', category: 'media' },
+];
+
+const RightSidebarHotspotEditor: React.FC<RightSidebarHotspotEditorProps> = ({
+  scene,
+  onUpdateScene,
+}) => {
+  const [selectedHotspotId, setSelectedHotspotId] = useState<number | null>(null);
+  const [showIconPicker, setShowIconPicker] = useState(false);
+
+  const hotspots = scene.navigation_connections || [];
+
+  const handleHotspotSelect = (hotspotId: number) => {
+    setSelectedHotspotId(hotspotId === selectedHotspotId ? null : hotspotId);
+    setShowIconPicker(false);
+  };
+
+  const handleHotspotUpdate = (hotspotId: number, updates: Partial<NavigationConnection>) => {
+    const updatedHotspots = hotspots.map(hotspot =>
+      hotspot.id === hotspotId ? { ...hotspot, ...updates } : hotspot
+    );
+    
+    onUpdateScene({ navigation_connections: updatedHotspots });
+  };
+
+  const handleDeleteHotspot = (hotspotId: number) => {
+    const updatedHotspots = hotspots.filter(hotspot => hotspot.id !== hotspotId);
+    onUpdateScene({ navigation_connections: updatedHotspots });
+    setSelectedHotspotId(null);
+  };
+
+  const selectedHotspot = hotspots.find(h => h.id === selectedHotspotId);
+
+  return (
+    <div className="right-sidebar-hotspot-editor">
+      {/* Hotspot List */}
+      <div className="hotspot-list-section">
+        <div className="section-header">
+          <h4>Hotspots ({hotspots.length})</h4>
+        </div>
+        
+        {hotspots.length === 0 ? (
+          <div className="empty-state">
+            <div className="empty-icon">🎯</div>
+            <p>No hotspots yet</p>
+            <span>Use the toolbar to place hotspots on the scene</span>
+          </div>
+        ) : (
+          <div className="hotspot-list">
+            {hotspots.map((hotspot, index) => (
+              <div
+                key={hotspot.id}
+                className={`hotspot-item ${selectedHotspotId === hotspot.id ? 'selected' : ''}`}
+                onClick={() => handleHotspotSelect(hotspot.id)}
+              >
+                <div className="hotspot-preview">
+                  <span className="hotspot-icon">
+                    {HOTSPOT_ICONS.find(icon => icon.id === (hotspot as any).icon_type)?.icon || '📍'}
+                  </span>
+                  <div className="hotspot-info">
+                    <div className="hotspot-title">
+                      {hotspot.label || `Hotspot ${index + 1}`}
+                    </div>
+                    <div className="hotspot-coords">
+                      {hotspot.yaw.toFixed(1)}°, {hotspot.pitch.toFixed(1)}°
+                    </div>
+                  </div>
+                </div>
+                
+                <button
+                  className="delete-hotspot"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteHotspot(hotspot.id);
+                  }}
+                  title="Delete hotspot"
+                >
+                  ❌
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Hotspot Editor */}
+      {selectedHotspot && (
+        <div className="hotspot-editor-section">
+          <div className="section-header">
+            <h4>Edit Hotspot</h4>
+          </div>
+
+          {/* Icon Selection */}
+          <div className="editor-group">
+            <label>Icon</label>
+            <div className="icon-selector">
+              <button
+                className="current-icon"
+                onClick={() => setShowIconPicker(!showIconPicker)}
+              >
+                <span className="icon">
+                  {HOTSPOT_ICONS.find(icon => icon.id === (selectedHotspot as any).icon_type)?.icon || '📍'}
+                </span>
+                <span className="label">
+                  {HOTSPOT_ICONS.find(icon => icon.id === (selectedHotspot as any).icon_type)?.label || 'Default'}
+                </span>
+                <span className="dropdown-arrow">▼</span>
+              </button>
+              
+              {showIconPicker && (
+                <div className="icon-picker">
+                  {Object.entries(
+                    HOTSPOT_ICONS.reduce((acc, icon) => {
+                      if (!acc[icon.category]) acc[icon.category] = [];
+                      acc[icon.category].push(icon);
+                      return acc;
+                    }, {} as Record<string, HotspotIcon[]>)
+                  ).map(([category, icons]) => (
+                    <div key={category} className="icon-category">
+                      <div className="category-title">{category}</div>
+                      <div className="icon-grid">
+                        {icons.map((icon) => (
+                          <button
+                            key={icon.id}
+                            className={`icon-option ${(selectedHotspot as any).icon_type === icon.id ? 'selected' : ''}`}
+                            onClick={() => {
+                              handleHotspotUpdate(selectedHotspot.id, { icon_type: icon.id } as any);
+                              setShowIconPicker(false);
+                            }}
+                            title={icon.label}
+                          >
+                            {icon.icon}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Label */}
+          <div className="editor-group">
+            <label>Label</label>
+            <input
+              type="text"
+              className="form-input"
+              value={selectedHotspot.label || ''}
+              onChange={(e) => handleHotspotUpdate(selectedHotspot.id, { label: e.target.value })}
+              placeholder="Hotspot label"
+            />
+          </div>
+
+          {/* Position */}
+          <div className="editor-group">
+            <label>Position</label>
+            <div className="position-inputs">
+              <div className="input-group">
+                <label>Yaw (°)</label>
+                <input
+                  type="number"
+                  className="form-input"
+                  value={selectedHotspot.yaw}
+                  onChange={(e) => handleHotspotUpdate(selectedHotspot.id, { yaw: parseFloat(e.target.value) || 0 })}
+                  min="-180"
+                  max="180"
+                  step="0.1"
+                />
+              </div>
+              <div className="input-group">
+                <label>Pitch (°)</label>
+                <input
+                  type="number"
+                  className="form-input"
+                  value={selectedHotspot.pitch}
+                  onChange={(e) => handleHotspotUpdate(selectedHotspot.id, { pitch: parseFloat(e.target.value) || 0 })}
+                  min="-90"
+                  max="90"
+                  step="0.1"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Size & Color */}
+          <div className="editor-group">
+            <label>Appearance</label>
+            <div className="appearance-controls">
+              <div className="input-group">
+                <label>Size</label>
+                <input
+                  type="range"
+                  className="form-range"
+                  value={selectedHotspot.size || 1}
+                  onChange={(e) => handleHotspotUpdate(selectedHotspot.id, { size: parseFloat(e.target.value) })}
+                  min="0.5"
+                  max="3"
+                  step="0.1"
+                />
+                <span className="range-value">{(selectedHotspot.size || 1).toFixed(1)}x</span>
+              </div>
+              
+              <div className="input-group">
+                <label>Color</label>
+                <input
+                  type="color"
+                  className="color-input"
+                  value={selectedHotspot.color || '#3b82f6'}
+                  onChange={(e) => handleHotspotUpdate(selectedHotspot.id, { color: e.target.value })}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Content */}
+          <div className="editor-group">
+            <label>Content</label>
+            <textarea
+              className="form-textarea"
+              value={(selectedHotspot as any).content || ''}
+              onChange={(e) => handleHotspotUpdate(selectedHotspot.id, { content: e.target.value } as any)}
+              placeholder="Add description or additional information"
+              rows={4}
+            />
+          </div>
+
+          {/* Link/Action */}
+          <div className="editor-group">
+            <label>Action</label>
+            <select
+              className="form-select"
+              value={(selectedHotspot as any).action_type || 'navigate'}
+              onChange={(e) => handleHotspotUpdate(selectedHotspot.id, { action_type: e.target.value } as any)}
+            >
+              <option value="navigate">Navigate to Scene</option>
+              <option value="info">Show Information</option>
+              <option value="image">Show Image</option>
+              <option value="video">Play Video</option>
+              <option value="link">Open Link</option>
+            </select>
+          </div>
+
+          {/* Action URL/Target */}
+          <div className="editor-group">
+            <label>Target/URL</label>
+            <input
+              type="text"
+              className="form-input"
+              value={(selectedHotspot as any).action_target || ''}
+              onChange={(e) => handleHotspotUpdate(selectedHotspot.id, { action_target: e.target.value } as any)}
+              placeholder="Scene ID, URL, or file path"
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default RightSidebarHotspotEditor; 

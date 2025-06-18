@@ -1,0 +1,507 @@
+/* EditorPreview Styles - Modern Interface */
+
+.editor-preview {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: #000;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Preview Viewer Container */
+.preview-viewer {
+  position: relative;
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  background: #000;
+  cursor: crosshair;
+  transition: all 0.3s ease;
+}
+
+.preview-viewer.drag-over {
+  cursor: copy;
+  background: rgba(0, 50, 100, 0.1);
+  border: 2px dashed rgba(96, 165, 250, 0.5);
+}
+
+/* Hotspot Toolbar */
+.hotspot-toolbar {
+  position: absolute;
+  bottom: 80px; /* Fixed distance from bottom - 80px gap for better visibility */
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 12px;
+  padding: 12px 16px;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+  max-width: calc(100% - 40px);
+  width: auto;
+  min-width: min(320px, 90vw); /* Responsive min-width */
+}
+
+.toolbar-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.toolbar-title {
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 500;
+  text-align: center;
+  opacity: 0.9;
+  margin-bottom: 8px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+/* Camera Info Display */
+.camera-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  backdrop-filter: blur(5px);
+}
+
+.camera-info-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+}
+
+.camera-values {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.camera-item {
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 400;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  white-space: nowrap;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.camera-item:hover {
+  background: rgba(96, 165, 250, 0.2);
+  transform: translateY(-1px);
+}
+
+.camera-item strong {
+  color: #60a5fa;
+  font-weight: 600;
+}
+
+.camera-hint {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 9px;
+  text-align: center;
+  font-style: italic;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+/* Set Initial View Button */
+.set-initial-view-btn {
+  background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+  user-select: none;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.set-initial-view-btn:hover {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+}
+
+.set-initial-view-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 6px rgba(59, 130, 246, 0.3);
+}
+
+.hotspot-icons {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.hotspot-icon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 6px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  cursor: grab;
+  transition: all 0.2s ease;
+  user-select: none;
+  min-width: 50px;
+  flex-shrink: 0;
+  pointer-events: auto;
+  -webkit-user-drag: element;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+.hotspot-icon:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.hotspot-icon:active,
+.hotspot-icon.dragging {
+  cursor: grabbing;
+  transform: scale(0.95);
+  opacity: 0.7;
+}
+
+.hotspot-icon .icon {
+  font-size: 20px;
+  line-height: 1;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+  pointer-events: none;
+  user-select: none;
+}
+
+.hotspot-icon .label {
+  color: #ffffff;
+  font-size: 9px;
+  font-weight: 500;
+  text-align: center;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 60px;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Drop Indicator */
+.drop-indicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(96, 165, 250, 0.1);
+  border: 3px dashed rgba(96, 165, 250, 0.6);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+  pointer-events: none;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.drop-message {
+  background: rgba(0, 0, 0, 0.8);
+  color: #60a5fa;
+  padding: 16px 24px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+  border: 1px solid rgba(96, 165, 250, 0.5);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 0.7;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.01);
+  }
+}
+
+/* Edit Help Overlay */
+.edit-help-overlay {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  background: rgba(0, 0, 0, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  padding: 16px;
+  max-width: 280px;
+  backdrop-filter: blur(20px);
+  z-index: 100;
+}
+
+.help-content h5 {
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 12px 0;
+}
+
+.help-content ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.help-content li {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 12px;
+  line-height: 1.4;
+  margin-bottom: 6px;
+  padding-left: 12px;
+  position: relative;
+}
+
+.help-content li:before {
+  content: '•';
+  color: rgba(255, 255, 255, 0.5);
+  position: absolute;
+  left: 0;
+}
+
+.help-content li:last-child {
+  margin-bottom: 0;
+}
+
+/* Loading State */
+.preview-loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 200;
+  text-align: center;
+}
+
+.loading-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  border-top: 3px solid #ffffff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.loading-content p {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 14px;
+  margin: 0;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Error State */
+.editor-preview-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  background: #000;
+}
+
+.error-content {
+  text-align: center;
+  background: rgba(0, 0, 0, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  padding: 32px;
+  backdrop-filter: blur(20px);
+}
+
+.error-content h4 {
+  color: #ff6b6b;
+  font-size: 18px;
+  margin: 0 0 12px 0;
+}
+
+.error-content p {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 14px;
+  margin: 0;
+  line-height: 1.4;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .hotspot-toolbar {
+    bottom: 60px; /* Fixed 60px gap on tablet */
+    left: 16px;
+    right: 16px;
+    transform: none;
+    padding: 12px 16px;
+    min-width: auto;
+    max-width: none;
+    width: auto;
+  }
+  
+  .hotspot-icons {
+    gap: 12px;
+  }
+  
+  .hotspot-icon {
+    min-width: 50px;
+    padding: 10px 6px;
+  }
+  
+  .hotspot-icon .icon {
+    font-size: 20px;
+  }
+  
+  .hotspot-icon .label {
+    font-size: 9px;
+  }
+  
+  .edit-help-overlay {
+    position: relative;
+    margin: 16px;
+    max-width: none;
+  }
+  
+  .toolbar-title {
+    font-size: 11px;
+  }
+  
+  .camera-info {
+    gap: 8px;
+  }
+  
+  .camera-values {
+    gap: 12px;
+  }
+  
+  .camera-item {
+    font-size: 9px;
+  }
+  
+  .camera-hint {
+    font-size: 8px;
+  }
+  
+  .set-initial-view-btn {
+    font-size: 9px;
+    padding: 6px 10px;
+  }
+}
+
+@media (max-width: 480px) {
+  .hotspot-toolbar {
+    bottom: 50px; /* Fixed 50px gap on small mobile */
+  }
+  
+  .hotspot-icons {
+    gap: 8px;
+  }
+  
+  .hotspot-icon {
+    min-width: 45px;
+    padding: 8px 4px;
+  }
+  
+  .hotspot-icon .icon {
+    font-size: 18px;
+  }
+  
+  .hotspot-icon .label {
+    font-size: 8px;
+  }
+  
+  .camera-info {
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .camera-values {
+    gap: 8px;
+    flex-direction: column;
+  }
+  
+  .camera-item {
+    font-size: 8px;
+  }
+  
+  .camera-hint {
+    font-size: 7px;
+  }
+  
+  .set-initial-view-btn {
+    font-size: 8px;
+    padding: 4px 8px;
+    align-self: center;
+  }
+}
+
+/* Large screens adjustment */
+@media (min-width: 1920px) {
+  .hotspot-toolbar {
+    bottom: 100px; /* Fixed 100px gap on large screens */
+    min-width: min(400px, 90vw);
+    padding: 16px 20px;
+  }
+  
+  .hotspot-icon {
+    min-width: 55px;
+    padding: 10px 8px;
+  }
+  
+  .hotspot-icon .icon {
+    font-size: 22px;
+  }
+  
+  .hotspot-icon .label {
+    font-size: 10px;
+  }
+} 

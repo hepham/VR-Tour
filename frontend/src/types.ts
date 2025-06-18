@@ -1,3 +1,26 @@
+export interface Tour {
+  id: number;
+  title: string;
+  description: string;
+  thumbnail?: string;
+  created_at?: string;
+  updated_at?: string;
+  scenes?: Scene[];
+}
+
+export interface Scene {
+  id: number;
+  tour_id: number;
+  title: string;
+  description?: string;
+  panorama_image: string;
+  default_yaw: number;
+  default_pitch: number;
+  order: number;
+  navigation_connections?: NavigationConnection[];
+  checkpoints?: Checkpoint[];
+}
+
 export interface NavigationConnection {
   id: number;
   from_scene: number;
