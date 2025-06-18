@@ -125,8 +125,7 @@ Expanding the VR Tour platform with content creation capabilities. The viewing e
 
 ### 3. Recent Bug Fixes Completed ✅
 - **Fixed Hotspot Creation Issue**: Hotspots were being created unintentionally during camera rotation. Now hotspots are only created via drag & drop from the toolbar icons, not by clicking on the 360° image during rotation.
-- **Fixed Hotspot Coordinate Mismatch**: Replaced complex manual coordinate calculation with accurate Three.js raycasting approach. Now uses a two-step process: drag icon to select type, then click on 360° image for precise placement using VRScene's raycasting system.
-- **Enhanced Hotspot Placement UX**: Added visual indicators for placement mode and clear instructions. Users now get immediate feedback when ready to place hotspots.
+- **Fixed Hotspot Coordinate Mismatch**: The coordinates of dropped hotspots now accurately match the drop position. Replaced complex raycasting calculation with simplified viewport-based coordinate conversion that properly accounts for camera position, zoom level, and field of view.
 
 ### 3. Production Readiness
 - **File Upload**: Implement chunked upload for large panoramic images
