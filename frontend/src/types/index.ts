@@ -32,6 +32,38 @@ export interface Scene {
   is_active: boolean;
   created_at?: string;
   updated_at?: string;
+  
+  // New extended properties for scene configuration
+  default_yaw?: number;
+  default_pitch?: number;
+  initial_zoom?: number;
+  
+  // Background audio settings
+  background_audio?: string;
+  background_audio_file?: File;
+  background_audio_volume?: number;
+  background_audio_autoplay?: boolean;
+  
+  // Voiceover audio settings (extended)
+  voiceover_audio_file?: File;
+  voiceover_audio_volume?: number;
+  voiceover_audio_autoplay?: boolean;
+  
+  // Legacy audio settings (for backwards compatibility)
+  audio_volume?: number;
+  audio_autoplay?: boolean;
+  
+  // Text overlay settings
+  overlay_text?: string;
+  text_position?: string;
+  
+  // Article settings
+  article_title?: string;
+  article_content?: string;
+  article_url?: string;
+  
+  navigation_connections?: NavigationConnection[];
+  checkpoints?: any[];
 }
 
 export interface Hotspot {

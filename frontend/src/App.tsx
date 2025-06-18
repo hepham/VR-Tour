@@ -1,24 +1,27 @@
 import React, { useState } from 'react';
-import TourList from './components/TourList';
-import TourViewer from './components/TourViewer';
-import VRDemo from './components/VRDemo';
+import { TourList, TourViewer } from './components/Tour';
+import { VRDemo } from './components/VR';
+import { TourEditor } from './components/Editor';
 import './App.css';
 
 interface AppState {
-  currentView: 'list' | 'tour' | 'demo';
+  currentView: 'list' | 'tour' | 'demo' | 'editor';
   selectedTourId: number | null;
+  editingTourId: number | null;
 }
 
 const App: React.FC = () => {
   const [appState, setAppState] = useState<AppState>({
     currentView: 'demo', // Start with demo mode to test the 360° image
     selectedTourId: null,
+    editingTourId: null,
   });
 
   const handleTourSelect = (tourId: number) => {
     setAppState({
       currentView: 'tour',
       selectedTourId: tourId,
+      editingTourId: null,
     });
   };
 
@@ -26,6 +29,7 @@ const App: React.FC = () => {
     setAppState({
       currentView: 'list',
       selectedTourId: null,
+      editingTourId: null,
     });
   };
 
@@ -33,6 +37,7 @@ const App: React.FC = () => {
     setAppState({
       currentView: 'demo',
       selectedTourId: null,
+      editingTourId: null,
     });
   };
 
@@ -40,7 +45,26 @@ const App: React.FC = () => {
     setAppState({
       currentView: 'demo',
       selectedTourId: null,
+      editingTourId: null,
     });
+  };
+
+  const handleEditTour = (tourId?: number) => {
+    setAppState({
+      currentView: 'editor',
+      selectedTourId: null,
+      editingTourId: tourId || null,
+    });
+  };
+
+  const handleSaveTour = (tour: any) => {
+    console.log('Tour saved:', tour);
+    // TODO: Save tour to backend
+    handleBackToList();
+  };
+
+  const handleCancelEdit = () => {
+    handleBackToList();
   };
 
   const renderCurrentView = () => {
@@ -61,6 +85,14 @@ const App: React.FC = () => {
             onBack={handleBackToList}
           />
         ) : null;
+      case 'editor':
+        return (
+          <TourEditor
+            tourId={appState.editingTourId || undefined}
+            onSave={handleSaveTour}
+            onCancel={handleCancelEdit}
+          />
+        );
       case 'list':
       default:
         return <TourList onTourSelect={handleTourSelect} />;
@@ -90,6 +122,15 @@ const App: React.FC = () => {
               🥽 Demo
             </button>
           )}
+          {appState.currentView !== 'editor' && (
+            <button 
+              className="nav-button editor-button"
+              onClick={() => handleEditTour()}
+              aria-label="Tour Editor"
+            >
+              ✏️ Editor
+            </button>
+          )}
         </div>
       </header>
 
@@ -98,7 +139,7 @@ const App: React.FC = () => {
       </main>
 
       <footer className="app-footer">
-        <p>Powered by Three.js and React</p>
+        <p>Powered by hepham developer</p>
         {appState.currentView === 'demo' && (
           <p className="demo-info">
             Demo Mode - Testing 360° panoramic viewer

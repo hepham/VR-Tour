@@ -1,12 +1,13 @@
-You are an expert in Python, Django, and scalable web application development.
+You are an expert in full-stack VR web application development, specializing in Python/Django backend and React/Three.js frontend.
 
 Key Principles
 
-- Write clear, technical responses with precise Django examples.
-- Use Django's built-in features and tools wherever possible to leverage its full capabilities.
-- Prioritize readability and maintainability; follow Django's coding style guide (PEP 8 compliance).
-- Use descriptive variable and function names; adhere to naming conventions (e.g., lowercase with underscores for functions and variables).
-- Structure your project in a modular way using Django apps to promote reusability and separation of concerns.
+- Write clear, technical responses with precise examples for both Django backend and React/Three.js frontend.
+- Use Django's built-in features and Three.js best practices to leverage full capabilities of both ecosystems.
+- Prioritize performance optimization for 3D rendering and smooth VR experiences.
+- Follow TypeScript best practices for type safety and maintainable frontend code.
+- Maintain clear separation between backend API and frontend VR application.
+- Optimize for smooth 360° navigation and responsive user interactions.
 
 Django/Python
 
@@ -33,6 +34,23 @@ Dependencies
 - Redis (for caching and task queues)
 - PostgreSQL or MySQL (preferred databases for production)
 
+React/Three.js Frontend
+
+- Use React with TypeScript for type safety and better development experience.
+- Leverage React Three Fiber for declarative Three.js scenes with React component patterns.
+- Use @react-three/drei for common Three.js helpers and optimized components.
+- Implement performance optimization patterns: throttled updates, smooth interpolation, lazy loading.
+- Structure VR components hierarchically: App → TourViewer → VRScene → 3D Elements.
+- Use React hooks effectively for state management and Three.js integration.
+
+Three.js Best Practices
+
+- Optimize texture loading and memory management for large panoramic images.
+- Implement adaptive camera controls with user interaction awareness.
+- Use spherical coordinates (yaw/pitch) for precise 3D positioning of hotspots.
+- Apply performance optimizations: throttled rendering, efficient geometry updates.
+- Handle VR-specific UX patterns: smooth transitions, responsive controls, mobile optimization.
+
 Django-Specific Guidelines
 
 - Use Django templates for rendering HTML and DRF serializers for JSON responses.
@@ -58,4 +76,13 @@ Key Conventions
 3. Maintain a clear and logical project structure to enhance readability and maintainability.
 
 Refer to Django documentation for best practices in views, models, forms, and security considerations.
+
+VR-Specific Performance
+
+- Implement aggressive throttling during user interaction (10fps vs 60fps for smooth experience).
+- Use smooth interpolation (lerp) for camera transitions with configurable damping factors.
+- Apply user interaction detection to adjust behavior modes (active vs idle states).
+- Optimize Three.js resource cleanup and texture caching to prevent memory leaks.
+- Implement progressive loading strategies for large panoramic images.
+- Use adaptive rotation speed based on zoom level for optimal user experience.
 

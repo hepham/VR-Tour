@@ -51,15 +51,27 @@ vr-tour-platform/
 
 ### Frontend Dependencies
 - react>=18.0
+- react-dom>=18.0
 - three>=0.155
-- @react-three/fiber  # React Three.js integration
-- @react-three/drei   # Three.js helpers
+- @react-three/fiber>=8.13  # React Three.js integration
+- @react-three/drei>=9.80   # Three.js helpers
+- axios>=1.5.0             # API communication
 - vite>=4.0
 - typescript>=5.0
+- @types/react>=18.2
+- @types/react-dom>=18.2
+- @types/three>=0.155
+
+## Development and Testing Assets
+- **Demo 360° Image**: `iStock_2170832197.jpg` (17MB panoramic image)
+  - Used for standalone demo mode testing
+  - Configured viewing angles: yaw: 73°, pitch: -31°
+  - Demonstrates full VR functionality without backend dependency
 
 ## API Design Principles
 - RESTful architecture
 - Consistent JSON response format
 - Proper HTTP status codes
 - Pagination for large datasets
-- Media URL generation for frontend consumption 
+- Media URL generation for frontend consumption
+- CORS configuration for frontend-backend communication 

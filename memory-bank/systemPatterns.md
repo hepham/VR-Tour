@@ -35,18 +35,58 @@ Tour (1) → Scenes (many) → Hotspots (many)
 ```
 App
 ├── TourList (browse tours)
-├── TourViewer
-│   ├── VRScene (Three.js 360° rendering)
-│   ├── NavigationControls
-│   ├── AudioControls
-│   └── SceneInfo
+├── TourViewer (complete tour experience)
+│   ├── VRScene (advanced Three.js 360° rendering)
+│   │   ├── CameraController (smooth interpolation)
+│   │   ├── PanoramaSphere (optimized texture loading)
+│   │   ├── Hotspot (3D navigation points)
+│   │   └── CheckpointMarker (educational content)
+│   ├── AudioPlayer (advanced audio controls)
+│   ├── Controls (navigation interface)
+│   └── SceneViewer (scene management)
+├── VRDemo (standalone demo mode)
+├── TourEditor (NEW - content creation interface)
+│   ├── EditorLayout (sidebar + main + viewer)
+│   ├── SceneEditor (scene management panel)
+│   │   ├── SceneList (sidebar with drag-drop ordering)
+│   │   ├── SceneForm (metadata input forms)
+│   │   └── FileUploader (360° image upload)
+│   ├── HotspotEditor (visual hotspot placement)
+│   │   ├── HotspotPlacer (click-to-place on 360° view)
+│   │   ├── HotspotList (connection management)
+│   │   └── HotspotForm (hotspot configuration)
+│   ├── TourMetadataForm (tour info and settings)
+│   └── EditorPreview (real-time VRScene preview)
+└── Additional Components
+    ├── CheckpointModal (detailed content display)
+    ├── CheckpointList (content management)
+    └── SceneViewer (scene transition handling)
 ```
 
-### 4. 3D Scene Management
-- **Spherical Coordinates**: Hotspots positioned using yaw/pitch angles
-- **Camera Controls**: OrbitControls for smooth 360° navigation
-- **Texture Loading**: Efficient panoramic image loading and caching
-- **Audio Integration**: Synchronized audio playback with scene changes
+### 4. Advanced 3D Scene Management
+- **Spherical Coordinates**: Hotspots and checkpoints positioned using yaw/pitch angles
+- **Advanced Camera Controls**: Custom CameraController with smooth interpolation
+- **Performance Optimization**: User interaction awareness and throttled updates
+- **Adaptive Behavior**: Zoom-dependent rotation speed and damping adjustments
+- **Texture Loading**: Efficient panoramic image loading with error handling
+- **Audio Integration**: Synchronized audio playback with advanced controls
+- **Memory Management**: Optimized Three.js resource cleanup and texture caching
+
+### 5. Performance Optimization Patterns
+- **Throttled Updates**: Aggressive throttling during user interaction (10fps vs 60fps)
+- **Smooth Interpolation**: Lerp-based camera transitions with configurable damping
+- **Lazy Loading**: Components and textures loaded on-demand
+- **User Interaction Detection**: Different behavior modes for active vs idle states
+- **Resource Cleanup**: Proper disposal of Three.js resources to prevent memory leaks
+
+### 6. Content Creation Patterns (TourEditor)
+- **File Upload Strategy**: Chunked upload for large panoramic images with progress tracking
+- **Visual Editing**: Click-to-place hotspots directly on 360° preview
+- **Real-time Preview**: Integrated VRScene for immediate feedback during editing
+- **Auto-save Pattern**: Periodic state persistence to prevent data loss
+- **Drag-and-Drop**: Scene reordering and file upload with visual feedback
+- **Form Validation**: Real-time validation with immediate user feedback
+- **State Management**: Centralized editor state with undo/redo capabilities
 
 ## Database Design Patterns
 
