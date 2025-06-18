@@ -41,6 +41,82 @@ const EditorPreview: React.FC<EditorPreviewProps> = ({
   const [currentZoom, setCurrentZoom] = useState(75);
   const [isDragging, setIsDragging] = useState(false);
   const [draggedType, setDraggedType] = useState<HotspotType | null>(null);
+  const [debugDropPosition, setDebugDropPosition] = useState<{x: number, y: number} | null>(null);
+
+  // RADICAL RETHINK: Reverse engineer from VRScene's working logic
+  const screenToSpherical = (
+    screenX: number, 
+    screenY: number, 
+    canvasWidth: number, 
+    canvasHeight: number,
+    cameraYaw: number,
+    cameraPitch: number,
+    cameraZoom: number
+  ) => {
+    // Step 1: Convert screen to NDC (normalized device coordinates)
+    const ndcX = (screenX / canvasWidth) * 2 - 1;
+    const ndcY = -((screenY / canvasHeight) * 2 - 1); // Flip Y
+    
+    // Step 2: Convert NDC to view space using camera projection
+    const fovRad = (cameraZoom * Math.PI) / 180;
+    const aspect = canvasWidth / canvasHeight;
+    const viewX = ndcX * Math.tan(fovRad / 2) * aspect;
+    const viewY = ndcY * Math.tan(fovRad / 2);
+    const viewZ = -1; // View space points down -Z
+    
+    // Step 3: Transform view space to world space using OrbitControls logic
+    // VRScene uses: azimuthal = ((yaw - 90) * PI) / 180; polar = ((90 - pitch) * PI) / 180
+    const azimuthalAngle = ((cameraYaw - 90) * Math.PI) / 180;
+    const polarAngle = ((90 - cameraPitch) * Math.PI) / 180;
+    
+    // Step 4: Apply SAME rotation order as OrbitControls
+    // OrbitControls applies: polar first (around X), then azimuthal (around Y)
+    
+    // First apply polar rotation (rotation around X-axis)
+    const cosP = Math.cos(polarAngle);
+    const sinP = Math.sin(polarAngle);
+    const rotX1 = viewX;
+    const rotY1 = viewY * cosP - viewZ * sinP;
+    const rotZ1 = viewY * sinP + viewZ * cosP;
+    
+    // Then apply azimuthal rotation (rotation around Y-axis)
+    const cosA = Math.cos(azimuthalAngle);
+    const sinA = Math.sin(azimuthalAngle);
+    const worldX = rotX1 * cosA + rotZ1 * sinA;
+    const worldY = rotY1;
+    const worldZ = -rotX1 * sinA + rotZ1 * cosA;
+    
+    // Step 5: Scale to sphere surface (radius 500)
+    const length = Math.sqrt(worldX * worldX + worldY * worldY + worldZ * worldZ);
+    const sphereRadius = 500;
+    const pointX = (worldX / length) * sphereRadius;
+    const pointY = (worldY / length) * sphereRadius;
+    const pointZ = (worldZ / length) * sphereRadius;
+    
+    // Step 6: Convert to spherical coordinates (EXACT same as VRScene)
+    const radius = Math.sqrt(pointX * pointX + pointY * pointY + pointZ * pointZ);
+    const pitch = Math.asin(pointY / radius) * (180 / Math.PI);
+    
+    // NOTE: Don't invert pitch here - VRScene's sphericalToCartesian does the inversion
+    // when rendering hotspots, but the stored coordinate should be positive
+    
+    let yaw = Math.atan2(pointX, pointZ) * (180 / Math.PI);
+    yaw = ((yaw - 180) + 360) % 360; // Apply same offset as VRScene
+    
+    console.log('🎯 ORBITCONTROLS-CORRECT conversion:', {
+      screen: { x: screenX, y: screenY },
+      ndc: { x: ndcX, y: ndcY },
+      view: { x: viewX, y: viewY, z: viewZ },
+      angles: { azimuthal: azimuthalAngle * 180 / Math.PI, polar: polarAngle * 180 / Math.PI },
+      world: { x: worldX, y: worldY, z: worldZ },
+      point: { x: pointX, y: pointY, z: pointZ },
+      camera: { yaw: cameraYaw, pitch: cameraPitch, zoom: cameraZoom },
+      result: { yaw, pitch },
+      method: 'OrbitControls rotation order: polar then azimuthal'
+    });
+    
+    return { yaw, pitch };
+  };
 
   // Sync activeSceneId with currentSceneId prop
   useEffect(() => {
@@ -68,18 +144,10 @@ const EditorPreview: React.FC<EditorPreviewProps> = ({
   }, [scenes]);
 
   const handleClick = useCallback((yaw: number, pitch: number) => {
-    // If we have a dragged type waiting, place the hotspot at the clicked position
-    if (editMode && onHotspotPlace && draggedType) {
-      console.log('🎯 Placing hotspot via VRScene click:', { yaw, pitch, type: draggedType });
-      onHotspotPlace(yaw, pitch, draggedType);
-      setDraggedType(null);
-      setIsDragging(false);
-      return;
-    }
-    
-    // Otherwise, just log for debugging
-    console.log('Scene clicked at:', { yaw, pitch }, 'but no hotspot placement needed');
-  }, [editMode, onHotspotPlace, draggedType]);
+    // Just log clicks for debugging, hotspots are placed via drag & drop
+    console.log('🔍 VRScene CLICK coordinates:', { yaw, pitch });
+    console.log('📍 Current camera state:', { yaw: currentYaw, pitch: currentPitch, zoom: currentZoom });
+  }, [currentYaw, currentPitch, currentZoom]);
 
   const handleCameraChange = (yaw: number, pitch: number) => {
     setCurrentYaw(yaw);
@@ -131,14 +199,46 @@ const EditorPreview: React.FC<EditorPreviewProps> = ({
     const type = e.dataTransfer.getData('hotspot-type') as HotspotType;
     console.log('📥 Retrieved type from drop:', type);
     
-    if (editMode && type) {
-      // Instead of calculating coordinates here, set the dragged type
-      // and let the user click on the exact position they want
-      setDraggedType(type);
-      console.log('🎯 Ready to place hotspot type:', type, '- Click on the 360° image to place it');
-    } else {
-      setIsDragging(false);
+    if (editMode && onHotspotPlace && type) {
+      // Calculate coordinates using the same method as VRScene
+      const rect = e.currentTarget.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      
+      console.log('📍 Drop coordinates:', { 
+        x, y, 
+        canvas: { width: rect.width, height: rect.height },
+        rect,
+        relativePosition: {
+          x: (x / rect.width).toFixed(3),
+          y: (y / rect.height).toFixed(3)
+        },
+        screenPosition: `${Math.round((x / rect.width) * 100)}% from left, ${Math.round((y / rect.height) * 100)}% from top`
+      });
+      
+      // Convert screen coordinates to spherical coordinates
+      // This replicates VRScene's raycasting logic
+      const { yaw: targetYaw, pitch: targetPitch } = screenToSpherical(
+        x, y, rect.width, rect.height, currentYaw, currentPitch, currentZoom
+      );
+      
+      console.log('🧭 FINAL COORDINATES FOR COMPARISON:', { 
+        screen: { x, y },
+        camera: { yaw: currentYaw, pitch: -currentPitch, zoom: currentZoom },
+        calculated: { yaw: targetYaw, pitch: targetPitch },
+        type,
+        'NEXT_STEP': 'Now click this EXACT screen position and compare coordinates!'
+      });
+      
+      onHotspotPlace(targetYaw, targetPitch, type);
+      
+      // Set debug position for visual feedback (temporary)
+      setDebugDropPosition({ x, y });
+      // setTimeout(() => setDebugDropPosition(null), 2000); // Clear after 2s
     }
+    
+    setIsDragging(false);
+    setDraggedType(null);
   };
 
   const handleSetInitialView = () => {
@@ -243,29 +343,38 @@ const EditorPreview: React.FC<EditorPreviewProps> = ({
         {isDragging && (
           <div className="drop-indicator">
             <div className="drop-message">
-              Drop here to select {draggedType} hotspot type
+              Drop here to place {draggedType} hotspot
             </div>
           </div>
         )}
 
-        {/* Placement indicator when hotspot type is selected */}
-        {draggedType && !isDragging && (
-          <div className="placement-indicator">
-            <div className="placement-message">
-              🎯 Click on the 360° image to place {draggedType} hotspot
-            </div>
-          </div>
+        {/* Debug crosshair for drop position */}
+        {debugDropPosition && (
+          <div 
+            className="debug-crosshair"
+            style={{
+              position: 'absolute',
+              left: debugDropPosition.x - 10,
+              top: debugDropPosition.y - 10,
+              width: 20,
+              height: 20,
+              border: '2px solid #ff0000',
+              borderRadius: '50%',
+              pointerEvents: 'none',
+              zIndex: 1000,
+              backgroundColor: 'rgba(255, 0, 0, 0.3)'
+            }}
+          />
         )}
       </div>
 
       {/* Navigation Help */}
-      {editMode && !isDragging && !draggedType && (
+      {editMode && !isDragging && (
         <div className="edit-help-overlay">
           <div className="help-content">
             <h5>Hotspot Placement</h5>
             <ul>
-              <li>Drag icons from the toolbar to select hotspot type</li>
-              <li>Then click on the 360° image to place it precisely</li>
+              <li>Drag icons from the toolbar to place hotspots precisely</li>
               <li>Use mouse/touch to rotate the view</li>
               <li>Zoom with scroll wheel or pinch gesture</li>
             </ul>

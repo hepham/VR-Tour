@@ -12,6 +12,7 @@ Expanding the VR Tour platform with content creation capabilities. The viewing e
 - **Audio integration** for scene narration and background sounds
 - **Advanced camera controls** with smooth transitions and zoom functionality
 - **🐛 BUG FIX**: Fixed hotspot creation during camera rotation in EditorPreview
+- **🐛 CRITICAL BUG FIX**: Fixed coordinate system mismatch between hotspot placement and click detection
 
 ## Current Implementation Status
 
@@ -125,8 +126,18 @@ Expanding the VR Tour platform with content creation capabilities. The viewing e
 
 ### 3. Recent Bug Fixes Completed ✅
 - **Fixed Hotspot Creation Issue**: Hotspots were being created unintentionally during camera rotation. Now hotspots are only created via drag & drop from the toolbar icons, not by clicking on the 360° image during rotation.
-- **Fixed Hotspot Coordinate Mismatch**: Replaced complex manual coordinate calculation with accurate Three.js raycasting approach. Now uses a two-step process: drag icon to select type, then click on 360° image for precise placement using VRScene's raycasting system.
-- **Enhanced Hotspot Placement UX**: Added visual indicators for placement mode and clear instructions. Users now get immediate feedback when ready to place hotspots.
+- **Fixed Hotspot Coordinate Mismatch**: The coordinates of dropped hotspots now accurately match the drop position. Replaced complex raycasting calculation with simplified viewport-based coordinate conversion that properly accounts for camera position, zoom level, and field of view.
+- **🔥 CRITICAL: Fixed Coordinate System Mismatch**: There was a major coordinate system inconsistency between:
+  - **EditorPreview.screenToSpherical()**: Used for calculating hotspot placement coordinates when dropping from toolbar
+  - **VRScene.handleSphereClick()**: Used for calculating coordinates when clicking on the sphere
+  
+  **The Problem**: Different offset calculations caused placed hotspots to appear at wrong coordinates (e.g., placed at yaw: 39.89°, pitch: 11.69° but clicked at yaw: 130.90°, pitch: 44.64°)
+  
+  **The Solution**: Completely rewrote `screenToSpherical()` to match VRScene's coordinate system exactly:
+  - Uses same world-space ray transformation as VRScene
+  - Applies same yaw offset: `yaw = ((yaw - 180) + 360) % 360`
+  - Matches pitch calculation: `pitch = Math.asin(worldY / radius) * (180 / Math.PI)`
+  - Now both systems use identical coordinate space for consistent hotspot placement
 
 ### 3. Production Readiness
 - **File Upload**: Implement chunked upload for large panoramic images
