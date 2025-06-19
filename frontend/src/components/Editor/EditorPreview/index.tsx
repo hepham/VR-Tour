@@ -201,6 +201,7 @@ const EditorPreview: React.FC<EditorPreviewProps> = ({
     
     if (editMode && onHotspotPlace && type) {
       // Calculate coordinates using the same method as VRScene
+      // Calculate coordinates using the same method as VRScene
       const rect = e.currentTarget.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
@@ -365,6 +366,23 @@ const EditorPreview: React.FC<EditorPreviewProps> = ({
               backgroundColor: 'rgba(255, 0, 0, 0.3)'
             }}
           />
+        {/* Debug crosshair for drop position */}
+        {debugDropPosition && (
+          <div 
+            className="debug-crosshair"
+            style={{
+              position: 'absolute',
+              left: debugDropPosition.x - 10,
+              top: debugDropPosition.y - 10,
+              width: 20,
+              height: 20,
+              border: '2px solid #ff0000',
+              borderRadius: '50%',
+              pointerEvents: 'none',
+              zIndex: 1000,
+              backgroundColor: 'rgba(255, 0, 0, 0.3)'
+            }}
+          />
         )}
       </div>
 
@@ -374,6 +392,7 @@ const EditorPreview: React.FC<EditorPreviewProps> = ({
           <div className="help-content">
             <h5>Hotspot Placement</h5>
             <ul>
+              <li>Drag icons from the toolbar to place hotspots precisely</li>
               <li>Drag icons from the toolbar to place hotspots precisely</li>
               <li>Use mouse/touch to rotate the view</li>
               <li>Zoom with scroll wheel or pinch gesture</li>
