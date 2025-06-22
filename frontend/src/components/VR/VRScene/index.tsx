@@ -5,6 +5,7 @@ import { TextureLoader, Mesh, RepeatWrapping, DoubleSide } from 'three';
 import { NavigationConnection } from '../../../types';
 import Hotspot from '../Hotspot';
 import { CheckpointMarker } from '../../Checkpoint';
+import { cartesianToSpherical, debugCoordinateComparison, type Point3D } from '../../../utils/coordinateSystem';
 import './styles.css';
 
 // Temporary checkpoint interface until types are properly imported
@@ -42,6 +43,15 @@ interface VRSceneProps {
   onCameraChange?: (yaw: number, pitch: number) => void;
   onZoomChange?: (zoom: number) => void;
   onSceneClick?: (yaw: number, pitch: number) => void;
+}
+
+// ✅ Interface để expose Three.js objects cho shared raycasting
+export interface VRSceneRef {
+  getThreeObjects: () => {
+    camera: any;
+    sphereMesh: any;
+    canvas: HTMLCanvasElement | null;
+  } | null;
 }
 
 // Component to handle camera zoom updates with smooth transition and adaptive rotation speed
@@ -86,14 +96,19 @@ const CameraController: React.FC<{
         // Giảm damping factor khi kết thúc tương tác
         controlsRef.current.dampingFactor = 0.05;
         // Update current values to match controls when user stops interacting
+        // ✅ Sử dụng cùng coordinate system với calculateCameraAngles
         const azimuthal = controlsRef.current.getAzimuthalAngle();
         const polar = controlsRef.current.getPolarAngle();
-        currentYaw.current = ((azimuthal * 180) / Math.PI + 90 + 360) % 360;
+        let yaw = (azimuthal * 180) / Math.PI;
+        yaw = ((yaw - 180) + 360) % 360; // Same as cartesianToSpherical
+        currentYaw.current = yaw;
         currentPitch.current = 90 - (polar * 180) / Math.PI;
         
         // Schedule a final update after user stops interacting
         finalUpdateTimeout.current = setTimeout(() => {
-          const currentYawValue = ((azimuthal * 180) / Math.PI + 90 + 360) % 360;
+          // ✅ Sử dụng cùng coordinate system
+          let currentYawValue = (azimuthal * 180) / Math.PI;
+          currentYawValue = ((currentYawValue - 180) + 360) % 360;
           const currentPitchValue = 90 - (polar * 180) / Math.PI;
           lastCameraValues.current = { yaw: currentYawValue, pitch: currentPitchValue };
           onCameraChange?.(currentYawValue, currentPitchValue);
@@ -134,7 +149,8 @@ const CameraController: React.FC<{
         currentPitch.current += (targetPitch - currentPitch.current) * lerpFactor;
 
         // Convert to radians and set camera angles
-        const azimuthalAngle = ((currentYaw.current - 90) * Math.PI) / 180;
+        // ✅ Đảo ngược transform để phù hợp với coordinate system mới
+        const azimuthalAngle = ((currentYaw.current + 180) * Math.PI) / 180;
         const polarAngle = ((90 - currentPitch.current) * Math.PI) / 180;
 
         controlsRef.current.setAzimuthalAngle(azimuthalAngle);
@@ -159,7 +175,9 @@ const CameraController: React.FC<{
     if (now - lastNotificationTime.current > throttleInterval) {
       const azimuthal = controlsRef.current.getAzimuthalAngle();
       const polar = controlsRef.current.getPolarAngle();
-      const currentYawValue = ((azimuthal * 180) / Math.PI + 90 + 360) % 360;
+      // ✅ Sử dụng cùng coordinate system để đồng bộ click vs camera
+      let currentYawValue = (azimuthal * 180) / Math.PI;
+      currentYawValue = ((currentYawValue - 180) + 360) % 360;
       const currentPitchValue = 90 - (polar * 180) / Math.PI;
       
       // Only call onCameraChange if values have changed significantly
@@ -194,8 +212,11 @@ const PanoramaSphere: React.FC<{
   onImageLoad?: () => void;
   onImageError?: () => void;
   onSceneClick?: (yaw: number, pitch: number) => void;
-}> = ({ panoramaUrl, onImageLoad, onImageError, onSceneClick }) => {
-  const meshRef = useRef<Mesh>(null);
+  controlsRef?: React.RefObject<any>;
+  meshRef?: React.RefObject<any>;
+}> = ({ panoramaUrl, onImageLoad, onImageError, onSceneClick, controlsRef, meshRef }) => {
+  const localMeshRef = useRef<Mesh>(null);
+  const actualMeshRef = meshRef || localMeshRef;
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   
   // Use useLoader hook for reliable texture loading
@@ -220,23 +241,37 @@ const PanoramaSphere: React.FC<{
   const handleSphereClick = (event: any) => {
     if (onSceneClick && event.intersections && event.intersections.length > 0) {
       const intersection = event.intersections[0];
-      const point = intersection.point;
+      const point3D: Point3D = intersection.point;
       
-      // Convert 3D point to spherical coordinates
-      const radius = Math.sqrt(point.x * point.x + point.y * point.y + point.z * point.z);
-      const pitch = Math.asin(point.y / radius) * (180 / Math.PI);
+      console.log('🎯 RAW 3D CLICK POINT:', point3D);
       
-      // Calculate yaw with proper offset for coordinate system
-      let yaw = Math.atan2(point.x, point.z) * (180 / Math.PI);
-      yaw = ((yaw - 180) + 360) % 360; // Adjust for coordinate system offset
+      // ✅ Use centralized coordinate conversion
+      const rawSphericalCoord = cartesianToSpherical(point3D);
       
-      onSceneClick(yaw, pitch);
+      // ✅ CRITICAL FIX: Add 180° để align với OrbitControls reference frame  
+      const alignedYaw = (rawSphericalCoord.yaw + 180) % 360;
+      const sphericalCoord = { yaw: alignedYaw, pitch: rawSphericalCoord.pitch };
+      
+      console.log('🔍 VRScene CLICK coordinates:', sphericalCoord);
+      
+      // Store for drop comparison
+      (window as any).lastClickCoordinate = sphericalCoord;
+      
+      onSceneClick(sphericalCoord.yaw, sphericalCoord.pitch);
     }
   };
 
+  // ✅ Expose mesh globally for shared raycasting
+  useEffect(() => {
+    if (actualMeshRef.current) {
+      (window as any).vrSphereMesh = actualMeshRef.current;
+      console.log('🌐 SPHERE MESH EXPOSED GLOBALLY:', actualMeshRef.current);
+    }
+  }, []);
+
   return (
     <mesh 
-      ref={meshRef} 
+      ref={actualMeshRef} 
       scale={[1, 1, 1]} 
       onClick={handleSphereClick}
     >
@@ -251,7 +286,7 @@ const PanoramaSphere: React.FC<{
   );
 };
 
-const VRScene: React.FC<VRSceneProps> = ({
+const VRScene = React.forwardRef<VRSceneRef, VRSceneProps>(({
   panoramaUrl,
   yaw,
   pitch,
@@ -265,16 +300,46 @@ const VRScene: React.FC<VRSceneProps> = ({
   onCameraChange,
   onZoomChange,
   onSceneClick,
-}) => {
+}, ref) => {
   const controlsRef = useRef<any>(null);
   const cameraRef = useRef<any>(null);
+  const sphereMeshRef = useRef<any>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  
+  // ✅ Expose Three.js objects via ref for shared raycasting
+  React.useImperativeHandle(ref, () => ({
+    getThreeObjects: () => {
+      const canvas = canvasRef.current || document.querySelector('canvas');
+      return {
+        camera: cameraRef.current,
+        sphereMesh: sphereMeshRef.current,
+        canvas: canvas
+      };
+    }
+  }));
 
   // Function to calculate yaw and pitch from camera rotation
+  // ✅ FIXED: Đồng bộ với cartesianToSpherical coordinate system
   const calculateCameraAngles = () => {
     if (controlsRef.current) {
       const azimuthal = controlsRef.current.getAzimuthalAngle(); // radians
       const polar = controlsRef.current.getPolarAngle(); // radians
-      const yaw = ((azimuthal * 180) / Math.PI + 90 + 360) % 360;
+      
+      console.log('📷 CAMERA RAW ANGLES:', {
+        azimuthal_rad: azimuthal,
+        polar_rad: polar,
+        azimuthal_deg: (azimuthal * 180) / Math.PI,
+        polar_deg: (polar * 180) / Math.PI
+      });
+      
+      // ✅ Sử dụng cùng offset với cartesianToSpherical (-180°)
+      let yaw = (azimuthal * 180) / Math.PI;
+      console.log('📷 CAMERA YAW CALCULATION:', {
+        step1_raw_degrees: yaw,
+        step2_offset_applied: ((yaw - 180) + 360) % 360
+      });
+      yaw = ((yaw - 180) + 360) % 360; // Same as cartesianToSpherical
+      
       const pitch = 90 - (polar * 180) / Math.PI;
       return { yaw: Math.round(yaw), pitch: Math.round(pitch) };
     }
@@ -289,10 +354,11 @@ const VRScene: React.FC<VRSceneProps> = ({
         onCameraChange?.(yaw, pitch);
       };
 
-      controlsRef.current.addEventListener('change', () => {
-        const angles = calculateCameraAngles();
-        handleCameraChange(angles.yaw, angles.pitch);
-      });
+      // 🔍 Disable continuous updates để debug, chỉ update khi click
+      // controlsRef.current.addEventListener('change', () => {
+      //   const angles = calculateCameraAngles();
+      //   handleCameraChange(angles.yaw, angles.pitch);
+      // });
       
       // Call once initially
       handleCameraChange(yaw, pitch);
@@ -355,10 +421,11 @@ const VRScene: React.FC<VRSceneProps> = ({
 
   // Convert spherical coordinates to 3D position for hotspots and checkpoints
   const sphericalToCartesian = (yaw: number, pitch: number, radius: number = 450) => {
-    // Adjust yaw to match camera coordinate system (add 180 degrees offset)
-    const adjustedYaw = yaw + 180;
+    // ✅ FIXED: Match với cartesianToSpherical (NO pitch inversion)
+    // Click coordinates từ cartesianToSpherical không có pitch inversion
+    const adjustedYaw = yaw; // No offset needed after coordinate alignment fix
     const yawRad = (adjustedYaw * Math.PI) / 180;
-    const pitchRad = (-pitch * Math.PI) / 180; // Invert pitch to match camera
+    const pitchRad = (pitch * Math.PI) / 180; // ✅ NO INVERSION - match with click coordinates
     
     const x = radius * Math.cos(pitchRad) * Math.sin(yawRad);
     const y = radius * Math.sin(pitchRad);
@@ -385,6 +452,10 @@ const VRScene: React.FC<VRSceneProps> = ({
           gl.toneMapping = 0; // THREE.NoToneMapping
           gl.toneMappingExposure = 1.0;
           gl.outputColorSpace = 'srgb';
+          
+          // ✅ Expose camera globally for shared raycasting
+          (window as any).vrSceneCamera = camera;
+          console.log('📷 CAMERA EXPOSED GLOBALLY:', camera);
         }}
       >
         <CameraController 
@@ -417,14 +488,24 @@ const VRScene: React.FC<VRSceneProps> = ({
           onImageLoad={onImageLoad}
           onImageError={onImageError}
           onSceneClick={onSceneClick}
+          controlsRef={controlsRef}
         />
 
         {/* Render hotspots */}
-        {hotspots.map((hotspot) => {
+        {hotspots.map((hotspot, index) => {
           const [x, y, z] = sphericalToCartesian(hotspot.yaw, hotspot.pitch);
+          
+          // 🔍 Debug preview hotspots (negative IDs)
+          if (hotspot.id < 0) {
+            console.log('🎯 Rendering preview hotspot:', {
+              hotspot: { id: hotspot.id, yaw: hotspot.yaw, pitch: hotspot.pitch },
+              rendered3D: { x, y, z }
+            });
+          }
+          
           return (
             <Hotspot
-              key={hotspot.id}
+              key={`hotspot-${hotspot.id}-${index}`}
               position={[x, y, z]}
               hotspot={hotspot}
               onClick={() => onHotspotClick(hotspot.to_scene)}
@@ -433,11 +514,11 @@ const VRScene: React.FC<VRSceneProps> = ({
         })}
 
         {/* Render checkpoints */}
-        {checkpoints.map((checkpoint) => {
+        {checkpoints.map((checkpoint, index) => {
           const checkpointPosition = sphericalToCartesian(checkpoint.yaw, checkpoint.pitch) as [number, number, number];
           return (
             <CheckpointMarker
-              key={checkpoint.id}
+              key={`checkpoint-${checkpoint.id}-${index}`}
               position={checkpointPosition}
               checkpoint={checkpoint}
               onClick={() => onCheckpointClick?.(checkpoint)}
@@ -447,6 +528,6 @@ const VRScene: React.FC<VRSceneProps> = ({
       </Canvas>
     </div>
   );
-};
+});
 
 export default VRScene; 

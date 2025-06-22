@@ -1,6 +1,15 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { Tour, Scene } from '../../../types';
 import { VRScene } from '../../VR';
+import { 
+  performSharedRaycasting,
+  getThreeCanvas,
+  cartesianToSpherical,
+  debugCoordinateComparison,
+  type ScreenCoordinate,
+  type SphericalCoordinate,
+  type CameraState 
+} from '../../../utils/coordinateSystem';
 import './styles.css';
 
 interface EditorPreviewProps {
@@ -42,81 +51,19 @@ const EditorPreview: React.FC<EditorPreviewProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const [draggedType, setDraggedType] = useState<HotspotType | null>(null);
   const [debugDropPosition, setDebugDropPosition] = useState<{x: number, y: number} | null>(null);
+  
+  // ✅ State cho temporary/preview hotspots từ drag & drop
+  const [previewHotspots, setPreviewHotspots] = useState<Array<{
+    id: string;
+    yaw: number;
+    pitch: number;
+    type: HotspotType;
+    icon: string;
+    isPreview: boolean;
+  }>>([]);
 
-  // RADICAL RETHINK: Reverse engineer from VRScene's working logic
-  const screenToSpherical = (
-    screenX: number, 
-    screenY: number, 
-    canvasWidth: number, 
-    canvasHeight: number,
-    cameraYaw: number,
-    cameraPitch: number,
-    cameraZoom: number
-  ) => {
-    // Step 1: Convert screen to NDC (normalized device coordinates)
-    const ndcX = (screenX / canvasWidth) * 2 - 1;
-    const ndcY = -((screenY / canvasHeight) * 2 - 1); // Flip Y
-    
-    // Step 2: Convert NDC to view space using camera projection
-    const fovRad = (cameraZoom * Math.PI) / 180;
-    const aspect = canvasWidth / canvasHeight;
-    const viewX = ndcX * Math.tan(fovRad / 2) * aspect;
-    const viewY = ndcY * Math.tan(fovRad / 2);
-    const viewZ = -1; // View space points down -Z
-    
-    // Step 3: Transform view space to world space using OrbitControls logic
-    // VRScene uses: azimuthal = ((yaw - 90) * PI) / 180; polar = ((90 - pitch) * PI) / 180
-    const azimuthalAngle = ((cameraYaw - 90) * Math.PI) / 180;
-    const polarAngle = ((90 - cameraPitch) * Math.PI) / 180;
-    
-    // Step 4: Apply SAME rotation order as OrbitControls
-    // OrbitControls applies: polar first (around X), then azimuthal (around Y)
-    
-    // First apply polar rotation (rotation around X-axis)
-    const cosP = Math.cos(polarAngle);
-    const sinP = Math.sin(polarAngle);
-    const rotX1 = viewX;
-    const rotY1 = viewY * cosP - viewZ * sinP;
-    const rotZ1 = viewY * sinP + viewZ * cosP;
-    
-    // Then apply azimuthal rotation (rotation around Y-axis)
-    const cosA = Math.cos(azimuthalAngle);
-    const sinA = Math.sin(azimuthalAngle);
-    const worldX = rotX1 * cosA + rotZ1 * sinA;
-    const worldY = rotY1;
-    const worldZ = -rotX1 * sinA + rotZ1 * cosA;
-    
-    // Step 5: Scale to sphere surface (radius 500)
-    const length = Math.sqrt(worldX * worldX + worldY * worldY + worldZ * worldZ);
-    const sphereRadius = 500;
-    const pointX = (worldX / length) * sphereRadius;
-    const pointY = (worldY / length) * sphereRadius;
-    const pointZ = (worldZ / length) * sphereRadius;
-    
-    // Step 6: Convert to spherical coordinates (EXACT same as VRScene)
-    const radius = Math.sqrt(pointX * pointX + pointY * pointY + pointZ * pointZ);
-    const pitch = Math.asin(pointY / radius) * (180 / Math.PI);
-    
-    // NOTE: Don't invert pitch here - VRScene's sphericalToCartesian does the inversion
-    // when rendering hotspots, but the stored coordinate should be positive
-    
-    let yaw = Math.atan2(pointX, pointZ) * (180 / Math.PI);
-    yaw = ((yaw - 180) + 360) % 360; // Apply same offset as VRScene
-    
-    console.log('🎯 ORBITCONTROLS-CORRECT conversion:', {
-      screen: { x: screenX, y: screenY },
-      ndc: { x: ndcX, y: ndcY },
-      view: { x: viewX, y: viewY, z: viewZ },
-      angles: { azimuthal: azimuthalAngle * 180 / Math.PI, polar: polarAngle * 180 / Math.PI },
-      world: { x: worldX, y: worldY, z: worldZ },
-      point: { x: pointX, y: pointY, z: pointZ },
-      camera: { yaw: cameraYaw, pitch: cameraPitch, zoom: cameraZoom },
-      result: { yaw, pitch },
-      method: 'OrbitControls rotation order: polar then azimuthal'
-    });
-    
-    return { yaw, pitch };
-  };
+  // ✅ Using centralized coordinate system from utils
+  // This ensures ALL VR components use the SAME coordinate conversion logic
 
   // Sync activeSceneId with currentSceneId prop
   useEffect(() => {
@@ -143,11 +90,50 @@ const EditorPreview: React.FC<EditorPreviewProps> = ({
     }
   }, [scenes]);
 
-  const handleClick = useCallback((yaw: number, pitch: number) => {
+  const handleClick = useCallback((yaw: number, pitch: number, event?: any) => {
     // Just log clicks for debugging, hotspots are placed via drag & drop
     console.log('🔍 VRScene CLICK coordinates:', { yaw, pitch });
     console.log('📍 Current camera state:', { yaw: currentYaw, pitch: currentPitch, zoom: currentZoom });
+    
+    const yawDiff = Math.abs(yaw - currentYaw);
+    const pitchDiff = Math.abs(pitch - currentPitch);
+    
+    console.log('🔍 CLICK vs CAMERA DIFF:', { 
+      yawDiff: yawDiff.toFixed(2), 
+      pitchDiff: pitchDiff.toFixed(2),
+      status: (yawDiff < 5 && pitchDiff < 5) ? '✅ Coordinates match!' : '❌ Large difference - check coordinate system'
+    });
+    
+    // 🔍 Store for drop comparison with screen position if available
+    (window as any).lastClickCoordinate = { yaw, pitch };
+    
+    // ✅ If this is a click from drop debugging, store additional info
+    if (event?.debugScreenPosition) {
+      console.log('🎯 CLICK WITH SCREEN DEBUG:', {
+        clickCoord: { yaw, pitch },
+        screenPos: event.debugScreenPosition,
+        camera: { yaw: currentYaw, pitch: currentPitch }
+      });
+      (window as any).lastClickWithScreen = {
+        clickCoord: { yaw, pitch },
+        screenPos: event.debugScreenPosition,
+        camera: { yaw: currentYaw, pitch: currentPitch }
+      };
+    }
   }, [currentYaw, currentPitch, currentZoom]);
+
+  // ✅ Function để clear preview hotspots
+  const clearPreviewHotspots = useCallback(() => {
+    setPreviewHotspots([]);
+    setDebugDropPosition(null);
+    console.log('🧹 Preview hotspots cleared');
+  }, []);
+
+  // ✅ Function để remove specific preview hotspot
+  const removePreviewHotspot = useCallback((hotspotId: string) => {
+    setPreviewHotspots(prev => prev.filter(h => h.id !== hotspotId));
+    console.log('🗑️ Removed preview hotspot:', hotspotId);
+  }, []);
 
   const handleCameraChange = (yaw: number, pitch: number) => {
     setCurrentYaw(yaw);
@@ -216,25 +202,96 @@ const EditorPreview: React.FC<EditorPreviewProps> = ({
         screenPosition: `${Math.round((x / rect.width) * 100)}% from left, ${Math.round((y / rect.height) * 100)}% from top`
       });
       
-      // Convert screen coordinates to spherical coordinates
-      // This replicates VRScene's raycasting logic
-      const { yaw: targetYaw, pitch: targetPitch } = screenToSpherical(
-        x, y, rect.width, rect.height, currentYaw, currentPitch, currentZoom
-      );
+      // ✅ PERFECT SOLUTION: Use shared raycasting utility!
+      // This ensures EXACT same coordinate system as VRScene click
       
-      console.log('🧭 FINAL COORDINATES FOR COMPARISON:', { 
-        screen: { x, y },
-        camera: { yaw: currentYaw, pitch: -currentPitch, zoom: currentZoom },
-        calculated: { yaw: targetYaw, pitch: targetPitch },
-        type,
-        'NEXT_STEP': 'Now click this EXACT screen position and compare coordinates!'
-      });
+      console.log('🎯 USING SHARED RAYCASTING UTILITY');
       
-      onHotspotPlace(targetYaw, targetPitch, type);
+      // Get Three.js canvas and objects from VRScene
+      const canvas = getThreeCanvas(e.currentTarget as HTMLElement);
+      
+      if (!canvas) {
+        console.error('❌ Cannot find Three.js canvas for raycasting');
+        return;
+      }
+      
+      // Get Three.js camera and sphere mesh from VRScene
+      // Note: We'll need to expose these via VRScene or get them via context
+      // For now, use a temporary approach by storing them globally
+      const camera = (window as any).vrSceneCamera;
+      const sphereMesh = (window as any).vrSphereMesh;
+      
+      if (!camera || !sphereMesh) {
+        console.warn('⚠️ Three.js objects not available, falling back to coordinate calculation');
+        // Fallback to simpler calculation if objects not available
+        const centerX = rect.width / 2;
+        const centerY = rect.height / 2;
+        const offsetX = (x - centerX) / centerX;  // -1 to 1
+        const offsetY = (centerY - y) / centerY;  // -1 to 1, flipped Y
+        
+        const fovRad = (currentZoom * Math.PI) / 180;
+        const yawOffset = offsetX * (fovRad / 2) * (rect.width / rect.height) * (180 / Math.PI);
+        const pitchOffset = offsetY * (fovRad / 2) * (180 / Math.PI);
+        
+        var finalCoord = {
+          yaw: (currentYaw + yawOffset + 360) % 360,
+          pitch: Math.max(-90, Math.min(90, currentPitch + pitchOffset))
+        };
+      } else {
+        // ✅ Use perfect shared raycasting!
+        const absoluteX = e.clientX;
+        const absoluteY = e.clientY;
+        
+        const raycastResult = performSharedRaycasting(absoluteX, absoluteY, canvas, camera, sphereMesh);
+        
+        if (raycastResult) {
+          var finalCoord = raycastResult;
+          console.log('✅ SHARED RAYCASTING SUCCESS:', finalCoord);
+        } else {
+          console.error('❌ Shared raycasting failed');
+          return;
+        }
+      }
+      
+      console.log('🎯 FINAL DROP COORDINATES:', finalCoord);
+      
+      // 🔍 Debug: So sánh với last click coordinate để validate accuracy  
+      const lastClickData = (window as any).lastClickCoordinate;
+      if (lastClickData) {
+        const yawDiff = Math.abs(finalCoord.yaw - lastClickData.yaw);
+        const pitchDiff = Math.abs(finalCoord.pitch - lastClickData.pitch);
+        
+        console.log('⚖️ DROP vs LAST CLICK COMPARISON:', {
+          dropCoord: finalCoord,
+          lastClickCoord: lastClickData,
+          yawDiff: yawDiff.toFixed(2),
+          pitchDiff: pitchDiff.toFixed(2),
+          status: (yawDiff < 10 && pitchDiff < 10) ? '✅ Close match!' : '❌ Still misaligned'
+        });
+      }
+      
+      // ✅ Tạo preview hotspot với unique ID để render ngay tại vị trí drop
+      const previewHotspot = {
+        id: `preview-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        yaw: finalCoord.yaw,
+        pitch: finalCoord.pitch,
+        type: type,
+        icon: HOTSPOT_TYPES.find(h => h.type === type)?.icon || '📍',
+        isPreview: true
+      };
+      
+      // Add to preview hotspots array
+      setPreviewHotspots(prev => [...prev, previewHotspot]);
       
       // Set debug position for visual feedback (temporary)
       setDebugDropPosition({ x, y });
-      // setTimeout(() => setDebugDropPosition(null), 2000); // Clear after 2s
+      
+      // Call parent callback để notify about new hotspot placement
+      if (onHotspotPlace) {
+        onHotspotPlace(finalCoord.yaw, finalCoord.pitch, type);
+      }
+      
+      console.log('✅ PREVIEW HOTSPOT CREATED:', previewHotspot);
     }
     
     setIsDragging(false);
@@ -276,7 +333,31 @@ const EditorPreview: React.FC<EditorPreviewProps> = ({
           yaw={currentYaw}
           pitch={currentPitch}
           zoomLevel={currentZoom}
-          hotspots={activeScene.navigation_connections || []}
+          hotspots={[
+            ...(activeScene.navigation_connections || []),
+            // ✅ Convert preview hotspots to NavigationConnection format
+            ...previewHotspots.map((hotspot, index) => {
+              console.log('🔄 Converting preview hotspot to NavigationConnection:', {
+                original: hotspot,
+                converted: {
+                  id: -1000 - index,
+                  yaw: hotspot.yaw,
+                  pitch: hotspot.pitch
+                }
+              });
+              
+              return {
+                id: -1000 - index, // Ensure negative unique IDs để tránh conflict với real hotspots
+                from_scene: activeScene.id,
+                to_scene: -1, // Temporary scene ID for preview
+                yaw: hotspot.yaw,
+                pitch: hotspot.pitch,
+                label: `${hotspot.type} hotspot`,
+                size: 1.5,
+                color: '#ff4444' // Red color for preview hotspots
+              };
+            })
+          ]}
           checkpoints={activeScene.checkpoints || []}
           onHotspotClick={handleSceneChange}
           onCameraChange={handleCameraChange}
@@ -288,7 +369,28 @@ const EditorPreview: React.FC<EditorPreviewProps> = ({
         {editMode && (
           <div className="hotspot-toolbar">
             <div className="toolbar-content">
-              <div className="toolbar-title">Drag to place hotspots</div>
+              <div className="toolbar-title">
+                Drag to place hotspots
+                {previewHotspots.length > 0 && (
+                  <button 
+                    className="clear-previews-btn"
+                    onClick={clearPreviewHotspots}
+                    title="Clear all preview hotspots"
+                    style={{
+                      marginLeft: '10px',
+                      padding: '4px 8px',
+                      backgroundColor: '#ff4444',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      fontSize: '12px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    🧹 Clear {previewHotspots.length} preview{previewHotspots.length > 1 ? 's' : ''}
+                  </button>
+                )}
+              </div>
               
               {/* Camera Info Display */}
               <div className="camera-info">

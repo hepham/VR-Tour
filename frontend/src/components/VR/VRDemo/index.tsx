@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import VRScene from '../VRScene';
 import { Controls } from '../../Common';
 import { CheckpointModal, CheckpointList } from '../../Checkpoint';
+import { cartesianToSpherical, debugCoordinateComparison } from '../../../utils/coordinateSystem';
 import './styles.css';
 
 interface VRDemoProps {
@@ -191,6 +192,7 @@ Bên trong hố sụt có vi khí hậu đặc biệt với độ ẩm cao và n
   };
 
   const handleCheckpointClick = (checkpoint: any) => {
+
     console.log('Checkpoint clicked:', checkpoint);
     setSelectedCheckpoint(checkpoint);
     setIsCheckpointModalOpen(true);

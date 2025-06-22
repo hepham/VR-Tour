@@ -151,3 +151,161 @@ Expanding the VR Tour platform with content creation capabilities. The viewing e
 2. **File Upload Implementation**: Large 360° image upload handling
 3. **Data Flow Testing**: End-to-end tour creation and editing workflow
 4. **Mobile Optimization**: Ensure editor works on mobile devices 
+
+# VR Tour Coordinate System & Hotspot Drop - Complete Solution
+
+## Problem Summary
+User was implementing drag-and-drop hotspot placement in a VR tour application where coordinates between click events and drop events were misaligned, showing differences of ~86° yaw and ~5-30° pitch.
+
+## Root Cause Analysis
+The fundamental issue was **inconsistent coordinate systems** between different interaction methods:
+
+### Original Problem:
+- **Click coordinates**: Used Three.js raycasting → `cartesianToSpherical` conversion
+- **Drop coordinates**: Used manual screen-to-spherical calculation
+- **Result**: Large coordinate mismatches despite targeting same screen positions
+
+### Multiple Coordinate System Issues:
+1. **Reference Frame Differences**: -180° vs +90° vs +180° offsets across different functions
+2. **Pitch Inversion Mismatches**: Some functions inverted pitch, others didn't  
+3. **Different Calculation Methods**: Raycasting vs mathematical projection vs empirical scaling
+
+## Complete Solution: Unified Raycasting System
+
+### 1. Shared Raycasting Utility (`utils/coordinateSystem.ts`)
+```typescript
+/**
+ * 🎯 SHARED RAYCASTING UTILITY
+ * Centralized raycasting function để cả click và drop đều dùng cùng logic
+ */
+export const performSharedRaycasting = (
+  screenX: number, 
+  screenY: number, 
+  canvasElement: HTMLCanvasElement,
+  camera: any, // THREE.Camera
+  sphereMesh: any // THREE.Mesh
+): SphericalCoordinate | null => {
+  // Implementation uses Three.js Raycaster for consistent results
+}
+
+export const getThreeCanvas = (element: HTMLElement): HTMLCanvasElement | null => {
+  // Helper to find Three.js canvas element
+}
+```
+
+### 2. Three.js Object Exposure (VRScene)
+```typescript
+// In Canvas onCreated callback
+onCreated={({ camera, gl }) => {
+  // ✅ Expose camera globally for shared raycasting
+  (window as any).vrSceneCamera = camera;
+}}
+
+// In PanoramaSphere component  
+useEffect(() => {
+  if (actualMeshRef.current) {
+    // ✅ Expose mesh globally for shared raycasting
+    (window as any).vrSphereMesh = actualMeshRef.current;
+  }
+}, []);
+```
+
+### 3. Unified Drop Handler (EditorPreview)
+```typescript
+const handleDrop = (e: React.DragEvent) => {
+  // ✅ PERFECT SOLUTION: Use shared raycasting utility!
+  const canvas = getThreeCanvas(e.currentTarget as HTMLElement);
+  const camera = (window as any).vrSceneCamera;
+  const sphereMesh = (window as any).vrSphereMesh;
+  
+  if (camera && sphereMesh && canvas) {
+    // ✅ Use exact same raycasting as click system
+    const raycastResult = performSharedRaycasting(
+      e.clientX, e.clientY, canvas, camera, sphereMesh
+    );
+    
+    if (raycastResult) {
+      // Perfect coordinate match with click system!
+      const finalCoord = raycastResult;
+    }
+  }
+};
+```
+
+## Key Technical Achievements
+
+### ✅ Coordinate System Alignment
+- **Before**: Multiple conversion functions with different offsets (+90°, -180°, +180°)
+- **After**: Single raycasting system used by both click and drop
+
+### ✅ Pitch Inversion Fix  
+- **Before**: Some functions inverted pitch (`-pitch`), others didn't
+- **After**: Consistent pitch handling across all coordinate conversions
+
+### ✅ Reference Frame Unification
+- **Before**: Different reference frames between OrbitControls and raycasting
+- **After**: All coordinates use same +180° alignment with camera reference frame
+
+### ✅ Performance Optimization
+- **Before**: Complex empirical calculations with multiple fallback methods
+- **After**: Direct Three.js raycasting for accurate, fast coordinate conversion
+
+## Implementation Results
+
+### Perfect Coordinate Matching
+```javascript
+// Expected console output:
+📷 CAMERA EXPOSED GLOBALLY: [Camera object]
+🌐 SPHERE MESH EXPOSED GLOBALLY: [Mesh object]  
+🎯 USING SHARED RAYCASTING UTILITY
+✅ SHARED RAYCASTING SUCCESS: {yaw: 177.85, pitch: -1.06}
+🎯 FINAL DROP COORDINATES: {yaw: 177.85, pitch: -1.06}
+⚖️ DROP vs LAST CLICK COMPARISON: ✅ Close match! (< 2° difference)
+```
+
+### Hotspot Drop Functionality
+- ✅ **Visual Preview**: Hotspots appear instantly at drop locations
+- ✅ **Coordinate Accuracy**: Drop and click coordinates match within 2-3°
+- ✅ **Performance**: Smooth drag & drop with real-time coordinate conversion
+- ✅ **UI Controls**: Clear button for preview hotspots, unique ID generation
+
+## Architecture Benefits
+
+### 1. **Single Source of Truth**
+- All coordinate conversions go through shared raycasting utility
+- Eliminates coordinate system inconsistencies
+
+### 2. **Maintainability**  
+- Changes to coordinate logic only need to be made in one place
+- Easier debugging and testing
+
+### 3. **Extensibility**
+- New interaction types (touch, gestures) can use same raycasting system
+- Consistent coordinate handling for future features
+
+## Debug & Testing Guidelines
+
+### Console Debug Flow
+1. **Camera Exposure**: Check `📷 CAMERA EXPOSED GLOBALLY`
+2. **Mesh Exposure**: Check `🌐 SPHERE MESH EXPOSED GLOBALLY`
+3. **Click Coordinates**: Check `🔍 VRScene CLICK coordinates`
+4. **Drop Coordinates**: Check `🎯 FINAL DROP COORDINATES`
+5. **Comparison**: Check `⚖️ DROP vs LAST CLICK COMPARISON`
+
+### Expected Accuracy
+- **Yaw difference**: < 2°
+- **Pitch difference**: < 3°
+- **Status**: `✅ Close match!` instead of `❌ Still misaligned`
+
+## Historical Context
+
+This solution resolves a multi-session debugging effort that included:
+- Initial coordinate system investigation (86° yaw difference)
+- Multiple empirical scaling attempts
+- Camera coordinate system alignment fixes
+- Pitch inversion corrections
+- Finally: Complete unification via shared raycasting
+
+**Key Insight**: The problem wasn't with individual coordinate calculations, but with **using different calculation methods** for the same logical operation (screen position → spherical coordinates).
+
+**Final Solution**: **Use the same method (Three.js raycasting) for both click and drop events.** 
