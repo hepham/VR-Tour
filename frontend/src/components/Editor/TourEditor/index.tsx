@@ -5,6 +5,7 @@ import HotspotEditor from '../HotspotEditor';
 import TourMetadataForm from '../TourMetadataForm';
 import EditorPreview from '../EditorPreview';
 import RightSidebar from '../RightSidebar';
+import { HOTSPOT_TYPE_CONFIGS } from '../../../constants/hotspots';
 import './styles.css';
 
 interface TourEditorProps {
@@ -266,40 +267,24 @@ const TourEditor: React.FC<TourEditorProps> = ({
                           currentSceneId={selectedScene.id}
                           editMode={true}
                           onHotspotPlace={(yaw, pitch, type) => {
-                            // Create new hotspot and add to scene
-                            const hotspotTypes: Record<string, { label: string; color: string }> = {
-                              map: { label: 'Map hotspot', color: '#10b981' },
-                              image: { label: 'Image hotspot', color: '#3b82f6' },
-                              video: { label: 'Video hotspot', color: '#ef4444' },
-                              article: { label: 'Article hotspot', color: '#f59e0b' },
-                              link: { label: 'Link hotspot', color: '#8b5cf6' },
-                            };
-
-                            const hotspotConfig = hotspotTypes[type || 'navigation'] || {
-                              label: 'Navigation hotspot',
-                              color: '#3b82f6'
-                            };
-
-                            const newHotspot: NavigationConnection = {
-                              id: Date.now(), // Temporary ID, will be replaced by backend
-                              from_scene: selectedScene.id,
-                              to_scene: 0, // Will be set in hotspot editor
-                              yaw: Math.round(yaw * 100) / 100, // Round to 2 decimal places
-                              pitch: Math.round(pitch * 100) / 100,
-                              label: hotspotConfig.label,
-                              size: 15,
-                              color: hotspotConfig.color,
-                            };
-
-                            // Add hotspot to scene's navigation connections
-                            const currentConnections = selectedScene.navigation_connections || [];
-                            const updatedConnections = [...currentConnections, newHotspot];
+                                                         const config = HOTSPOT_TYPE_CONFIGS[type || 'navigation'];
                             
-                            updateScene(selectedScene.id, {
-                              navigation_connections: updatedConnections
-                            });
+                            const newHotspot: NavigationConnection & { type?: string; icon?: string } = {
+                              id: Date.now(),
+                              from_scene: selectedScene.id,
+                              to_scene: 0,
+                              yaw: Math.round(yaw * 100) / 100,
+                              pitch: Math.round(pitch * 100) / 100,
+                              label: config.label,
+                              size: 15,
+                              color: config.color,
+                              type: type || 'navigation',
+                              icon: config.icon,
+                            };
 
-                            console.log('Hotspot created at:', yaw, pitch, 'Type:', type);
+                            updateScene(selectedScene.id, {
+                              navigation_connections: [...(selectedScene.navigation_connections || []), newHotspot]
+                            });
                           }}
                           onSetInitialView={(yaw, pitch, zoom) => {
                             if (selectedScene) {

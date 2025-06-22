@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { Tour, Scene } from '../../../types';
 import { VRScene } from '../../VR';
 import { 
@@ -251,44 +251,10 @@ const EditorPreview: React.FC<EditorPreviewProps> = ({
         }
       }
       
-      console.log('🎯 FINAL DROP COORDINATES:', finalCoord);
-      
-      // 🔍 Debug: So sánh với last click coordinate để validate accuracy  
-      const lastClickData = (window as any).lastClickCoordinate;
-      if (lastClickData) {
-        const yawDiff = Math.abs(finalCoord.yaw - lastClickData.yaw);
-        const pitchDiff = Math.abs(finalCoord.pitch - lastClickData.pitch);
-        
-        console.log('⚖️ DROP vs LAST CLICK COMPARISON:', {
-          dropCoord: finalCoord,
-          lastClickCoord: lastClickData,
-          yawDiff: yawDiff.toFixed(2),
-          pitchDiff: pitchDiff.toFixed(2),
-          status: (yawDiff < 10 && pitchDiff < 10) ? '✅ Close match!' : '❌ Still misaligned'
-        });
-      }
-      
-      // ✅ Tạo preview hotspot với unique ID để render ngay tại vị trí drop
-      const previewHotspot = {
-        id: `preview-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        yaw: finalCoord.yaw,
-        pitch: finalCoord.pitch,
-        type: type,
-        icon: HOTSPOT_TYPES.find(h => h.type === type)?.icon || '📍',
-        isPreview: true
-      };
-      
-      // Add to preview hotspots array
-      setPreviewHotspots(prev => [...prev, previewHotspot]);
-      
-
-      
       // Call parent callback để notify about new hotspot placement
       if (onHotspotPlace) {
         onHotspotPlace(finalCoord.yaw, finalCoord.pitch, type);
       }
-      
-      console.log('✅ PREVIEW HOTSPOT CREATED:', previewHotspot);
     }
     
     setIsDragging(false);
@@ -304,6 +270,29 @@ const EditorPreview: React.FC<EditorPreviewProps> = ({
       );
     }
   };
+
+  // ✅ Memoize converted preview hotspots to prevent excessive re-calculations
+  const convertedPreviewHotspots = useMemo(() => {
+    if (previewHotspots.length === 0) {
+      return [];
+    }
+    
+    const converted = previewHotspots.map((hotspot, index) => ({
+      id: -1000 - index, // Ensure negative unique IDs để tránh conflict với real hotspots
+      from_scene: activeScene?.id || 0,
+      to_scene: -1, // Temporary scene ID for preview
+      yaw: hotspot.yaw,
+      pitch: hotspot.pitch,
+      label: `${hotspot.type} hotspot`,
+      size: 40, // Larger size for better visibility
+      color: '#ff6644', // Orange-red color for preview hotspots
+      type: hotspot.type, // Pass the hotspot type
+      icon: hotspot.icon, // Pass the emoji icon
+      isPreview: true // Mark as preview
+    }));
+    
+    return converted;
+  }, [previewHotspots, activeScene?.id]);
 
   if (!activeScene) {
     return (
@@ -332,28 +321,8 @@ const EditorPreview: React.FC<EditorPreviewProps> = ({
           zoomLevel={currentZoom}
           hotspots={[
             ...(activeScene.navigation_connections || []),
-            // ✅ Convert preview hotspots to NavigationConnection format
-            ...previewHotspots.map((hotspot, index) => {
-              console.log('🔄 Converting preview hotspot to NavigationConnection:', {
-                original: hotspot,
-                converted: {
-                  id: -1000 - index,
-                  yaw: hotspot.yaw,
-                  pitch: hotspot.pitch
-                }
-              });
-              
-              return {
-                id: -1000 - index, // Ensure negative unique IDs để tránh conflict với real hotspots
-                from_scene: activeScene.id,
-                to_scene: -1, // Temporary scene ID for preview
-                yaw: hotspot.yaw,
-                pitch: hotspot.pitch,
-                label: `${hotspot.type} hotspot`,
-                size: 1.5,
-                color: '#ff4444' // Red color for preview hotspots
-              };
-            })
+            // ✅ Use memoized converted preview hotspots
+            ...convertedPreviewHotspots
           ]}
           checkpoints={activeScene.checkpoints || []}
           onHotspotClick={handleSceneChange}

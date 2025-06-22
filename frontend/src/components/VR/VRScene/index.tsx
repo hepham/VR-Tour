@@ -354,11 +354,7 @@ const VRScene = React.forwardRef<VRSceneRef, VRSceneProps>(({
         onCameraChange?.(yaw, pitch);
       };
 
-      // 🔍 Disable continuous updates để debug, chỉ update khi click
-      // controlsRef.current.addEventListener('change', () => {
-      //   const angles = calculateCameraAngles();
-      //   handleCameraChange(angles.yaw, angles.pitch);
-      // });
+      // Disabled continuous camera updates for performance
       
       // Call once initially
       handleCameraChange(yaw, pitch);
@@ -421,11 +417,9 @@ const VRScene = React.forwardRef<VRSceneRef, VRSceneProps>(({
 
   // Convert spherical coordinates to 3D position for hotspots and checkpoints
   const sphericalToCartesian = (yaw: number, pitch: number, radius: number = 450) => {
-    // ✅ FIXED: Match với cartesianToSpherical (NO pitch inversion)
-    // Click coordinates từ cartesianToSpherical không có pitch inversion
-    const adjustedYaw = yaw; // No offset needed after coordinate alignment fix
-    const yawRad = (adjustedYaw * Math.PI) / 180;
-    const pitchRad = (pitch * Math.PI) / 180; // ✅ NO INVERSION - match with click coordinates
+    // Convert to radians - aligned with coordinate system
+    const yawRad = (yaw * Math.PI) / 180;
+    const pitchRad = (pitch * Math.PI) / 180;
     
     const x = radius * Math.cos(pitchRad) * Math.sin(yawRad);
     const y = radius * Math.sin(pitchRad);
@@ -453,9 +447,8 @@ const VRScene = React.forwardRef<VRSceneRef, VRSceneProps>(({
           gl.toneMappingExposure = 1.0;
           gl.outputColorSpace = 'srgb';
           
-          // ✅ Expose camera globally for shared raycasting
+          // Expose camera globally for coordinate calculations
           (window as any).vrSceneCamera = camera;
-          console.log('📷 CAMERA EXPOSED GLOBALLY:', camera);
         }}
       >
         <CameraController 
@@ -493,14 +486,11 @@ const VRScene = React.forwardRef<VRSceneRef, VRSceneProps>(({
 
         {/* Render hotspots */}
         {hotspots.map((hotspot, index) => {
-          const [x, y, z] = sphericalToCartesian(hotspot.yaw, hotspot.pitch);
+          let [x, y, z] = sphericalToCartesian(hotspot.yaw, hotspot.pitch);
           
-          // 🔍 Debug preview hotspots (negative IDs)
+          // Offset preview hotspots to avoid overlapping
           if (hotspot.id < 0) {
-            console.log('🎯 Rendering preview hotspot:', {
-              hotspot: { id: hotspot.id, yaw: hotspot.yaw, pitch: hotspot.pitch },
-              rendered3D: { x, y, z }
-            });
+            z += 5; // Move preview hotspots slightly forward
           }
           
           return (
