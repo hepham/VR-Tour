@@ -50,7 +50,6 @@ const EditorPreview: React.FC<EditorPreviewProps> = ({
   const [currentZoom, setCurrentZoom] = useState(75);
   const [isDragging, setIsDragging] = useState(false);
   const [draggedType, setDraggedType] = useState<HotspotType | null>(null);
-  const [debugDropPosition, setDebugDropPosition] = useState<{x: number, y: number} | null>(null);
   
   // ✅ State cho temporary/preview hotspots từ drag & drop
   const [previewHotspots, setPreviewHotspots] = useState<Array<{
@@ -125,7 +124,6 @@ const EditorPreview: React.FC<EditorPreviewProps> = ({
   // ✅ Function để clear preview hotspots
   const clearPreviewHotspots = useCallback(() => {
     setPreviewHotspots([]);
-    setDebugDropPosition(null);
     console.log('🧹 Preview hotspots cleared');
   }, []);
 
@@ -283,8 +281,7 @@ const EditorPreview: React.FC<EditorPreviewProps> = ({
       // Add to preview hotspots array
       setPreviewHotspots(prev => [...prev, previewHotspot]);
       
-      // Set debug position for visual feedback (temporary)
-      setDebugDropPosition({ x, y });
+
       
       // Call parent callback để notify about new hotspot placement
       if (onHotspotPlace) {
@@ -450,24 +447,7 @@ const EditorPreview: React.FC<EditorPreviewProps> = ({
           </div>
         )}
 
-        {/* Debug crosshair for drop position */}
-        {debugDropPosition && (
-          <div 
-            className="debug-crosshair"
-            style={{
-              position: 'absolute',
-              left: debugDropPosition.x - 10,
-              top: debugDropPosition.y - 10,
-              width: 20,
-              height: 20,
-              border: '2px solid #ff0000',
-              borderRadius: '50%',
-              pointerEvents: 'none',
-              zIndex: 1000,
-              backgroundColor: 'rgba(255, 0, 0, 0.3)'
-            }}
-          />
-        )}
+
       </div>
 
       {/* Navigation Help */}
