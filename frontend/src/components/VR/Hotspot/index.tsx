@@ -40,7 +40,7 @@ const Hotspot: React.FC<HotspotProps> = ({ position, hotspot, onClick }) => {
     meshRef.current.position.copy(hotspotPos.clone().add(normal.clone().multiplyScalar(floatOffset)));
   });
 
-  const scale = hovered ? 1.3 : 1;
+     const scale = hovered ? 1.1 : 1;
 
   return (
     <mesh
@@ -48,25 +48,28 @@ const Hotspot: React.FC<HotspotProps> = ({ position, hotspot, onClick }) => {
       position={position}
       scale={scale}
     >
-      {/* Icon only - no background */}
-      <Html center transform occlude={false} scale={6}>
-        <div 
-          style={{
-            fontSize: '160px',
-            color: 'white',
-            textShadow: '2px 2px 4px rgba(0, 0, 0, 0.9)',
-            userSelect: 'none',
-            pointerEvents: 'auto',
-            lineHeight: '1',
-            transform: hovered ? 'scale(1.3)' : 'scale(1)',
-            transition: 'transform 0.3s ease',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            minWidth: '160px',
-            minHeight: '160px',
-            cursor: 'pointer',
-          }}
+             {/* Icon only - optimized size for VR interaction (target: ~100-120px) */}
+       <Html center transform occlude={false} scale={15}>
+         <div 
+                                     style={{
+               fontSize: '50px',
+               color: 'white',
+               textShadow: '3px 3px 6px rgba(0, 0, 0, 0.95)',
+               userSelect: 'none',
+               pointerEvents: 'auto',
+               lineHeight: '1',
+               transform: hovered ? 'scale(1.1)' : 'scale(1)',
+               transition: 'transform 0.3s ease',
+               display: 'flex',
+               alignItems: 'center',
+               justifyContent: 'center',
+               minWidth: '100px',
+               minHeight: '100px',
+               cursor: 'pointer',
+               // Optimized size for VR interaction
+               width: '100px',
+               height: '100px',
+             }}
           onClick={onClick}
           onMouseEnter={() => setHovered(true)}
           onMouseLeave={() => setHovered(false)}
