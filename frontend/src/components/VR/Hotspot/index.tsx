@@ -46,37 +46,30 @@ const Hotspot: React.FC<HotspotProps> = ({ position, hotspot, onClick }) => {
     <mesh
       ref={meshRef}
       position={position}
-      onClick={onClick}
-      onPointerOver={() => setHovered(true)}
-      onPointerOut={() => setHovered(false)}
       scale={scale}
     >
-      {/* Sphere background */}
-      <sphereGeometry args={[8, 16, 16]} />
-      <meshBasicMaterial 
-        color={hovered ? "#ffffff" : (hotspot.color || "#ff6b6b")}
-        transparent
-        opacity={hovered ? 0.9 : 0.7}
-      />
-      
-      {/* Icon overlay */}
-      <Html center transform occlude={false} scale={3}>
+      {/* Icon only - no background */}
+      <Html center transform occlude={false} scale={6}>
         <div 
           style={{
-            fontSize: '80px',
+            fontSize: '160px',
             color: 'white',
             textShadow: '2px 2px 4px rgba(0, 0, 0, 0.9)',
             userSelect: 'none',
-            pointerEvents: 'none',
+            pointerEvents: 'auto',
             lineHeight: '1',
             transform: hovered ? 'scale(1.3)' : 'scale(1)',
             transition: 'transform 0.3s ease',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            minWidth: '80px',
-            minHeight: '80px',
+            minWidth: '160px',
+            minHeight: '160px',
+            cursor: 'pointer',
           }}
+          onClick={onClick}
+          onMouseEnter={() => setHovered(true)}
+          onMouseLeave={() => setHovered(false)}
         >
           {icon}
         </div>
