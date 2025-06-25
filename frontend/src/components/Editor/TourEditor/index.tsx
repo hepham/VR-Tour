@@ -201,6 +201,7 @@ const TourEditor: React.FC<TourEditorProps> = ({
             <EditorPreview
               tour={editorState.tour as Tour}
               scenes={editorState.scenes}
+              editMode={false}
               onExitPreview={() => setEditorState(prev => ({ ...prev, previewMode: false }))}
               onSetInitialView={(yaw, pitch, zoom) => {
                 // TODO: Handle set initial view in preview mode
@@ -263,7 +264,7 @@ const TourEditor: React.FC<TourEditorProps> = ({
                       {selectedScene.panorama_image ? (
                         <EditorPreview
                           tour={editorState.tour as Tour}
-                          scenes={[selectedScene]}
+                          scenes={editorState.scenes}
                           currentSceneId={selectedScene.id}
                           editMode={true}
                           onHotspotPlace={(yaw, pitch, type) => {
@@ -294,6 +295,9 @@ const TourEditor: React.FC<TourEditorProps> = ({
                                 initial_zoom: zoom
                               } as Partial<Scene>);
                             }
+                          }}
+                          onSceneChange={(sceneId) => {
+                            setEditorState(prev => ({ ...prev, selectedSceneId: sceneId }));
                           }}
                         />
                       ) : (
@@ -326,6 +330,7 @@ const TourEditor: React.FC<TourEditorProps> = ({
               {/* Right Sidebar */}
               <RightSidebar
                 scene={selectedScene || null}
+                scenes={editorState.scenes}
                 activeTab={rightSidebarTab}
                 onTabChange={setRightSidebarTab}
                 onUpdateScene={(updates) => {

@@ -82,6 +82,15 @@ const HotspotEditor: React.FC<HotspotEditorProps> = ({
   };
 
   const handleUpdateHotspot = (id: number) => {
+    console.log('🔄 [HotspotEditor] Updating existing hotspot:', {
+      hotspotId: id,
+      sceneId: scene.id,
+      sceneTitle: scene.title,
+      currentData: connections.find(c => c.id === id),
+      newFormData: formData,
+      totalHotspots: connections.length
+    });
+    
     const updatedConnections = connections.map(conn =>
       conn.id === id ? {
         ...conn,
@@ -93,6 +102,11 @@ const HotspotEditor: React.FC<HotspotEditorProps> = ({
         color: formData.color,
       } : conn
     );
+
+    console.log('✅ [HotspotEditor] Hotspot updated successfully:', {
+      updatedHotspot: updatedConnections.find(c => c.id === id),
+      totalConnections: updatedConnections.length
+    });
 
     onUpdateScene({ navigation_connections: updatedConnections });
     setEditingId(null);

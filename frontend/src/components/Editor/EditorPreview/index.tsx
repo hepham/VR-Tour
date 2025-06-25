@@ -20,6 +20,7 @@ interface EditorPreviewProps {
   onHotspotPlace?: (yaw: number, pitch: number, type?: string) => void;
   onSetInitialView?: (yaw: number, pitch: number, zoom: number) => void;
   onExitPreview?: () => void;
+  onSceneChange?: (sceneId: number) => void;
 }
 
 type HotspotType = 'map' | 'image' | 'video' | 'article' | 'link';
@@ -40,6 +41,7 @@ const EditorPreview: React.FC<EditorPreviewProps> = ({
   onHotspotPlace,
   onSetInitialView,
   onExitPreview,
+  onSceneChange,
 }) => {
   const [activeSceneId, setActiveSceneId] = useState<number>(
     currentSceneId || scenes[0]?.id || 0
@@ -87,50 +89,23 @@ const EditorPreview: React.FC<EditorPreviewProps> = ({
       setCurrentYaw(newScene.default_yaw);
       setCurrentPitch(newScene.default_pitch);
     }
-  }, [scenes]);
-
-  const handleClick = useCallback((yaw: number, pitch: number, event?: any) => {
-    // Just log clicks for debugging, hotspots are placed via drag & drop
-    console.log('🔍 VRScene CLICK coordinates:', { yaw, pitch });
-    console.log('📍 Current camera state:', { yaw: currentYaw, pitch: currentPitch, zoom: currentZoom });
-    
-    const yawDiff = Math.abs(yaw - currentYaw);
-    const pitchDiff = Math.abs(pitch - currentPitch);
-    
-    console.log('🔍 CLICK vs CAMERA DIFF:', { 
-      yawDiff: yawDiff.toFixed(2), 
-      pitchDiff: pitchDiff.toFixed(2),
-      status: (yawDiff < 5 && pitchDiff < 5) ? '✅ Coordinates match!' : '❌ Large difference - check coordinate system'
-    });
-    
-    // 🔍 Store for drop comparison with screen position if available
-    (window as any).lastClickCoordinate = { yaw, pitch };
-    
-    // ✅ If this is a click from drop debugging, store additional info
-    if (event?.debugScreenPosition) {
-      console.log('🎯 CLICK WITH SCREEN DEBUG:', {
-        clickCoord: { yaw, pitch },
-        screenPos: event.debugScreenPosition,
-        camera: { yaw: currentYaw, pitch: currentPitch }
-      });
-      (window as any).lastClickWithScreen = {
-        clickCoord: { yaw, pitch },
-        screenPos: event.debugScreenPosition,
-        camera: { yaw: currentYaw, pitch: currentPitch }
-      };
+    // Notify parent component about scene change
+    if (onSceneChange) {
+      onSceneChange(sceneId);
     }
-  }, [currentYaw, currentPitch, currentZoom]);
+  }, [scenes, onSceneChange]);
 
-  // ✅ Function để clear preview hotspots
-  const clearPreviewHotspots = useCallback(() => {
-    setPreviewHotspots([]);
-    console.log('🧹 Preview hotspots cleared');
+  const handleClick = useCallback((yaw: number, pitch: number) => {
+    // For debugging coordinate placement
+    (window as any).lastClickCoordinate = { yaw, pitch };
   }, []);
 
-  // ✅ Function để remove specific preview hotspot
+  const clearPreviewHotspots = useCallback(() => {
+    setPreviewHotspots([]);
+  }, []);
+
   const removePreviewHotspot = useCallback((hotspotId: string) => {
     setPreviewHotspots(prev => prev.filter(h => h.id !== hotspotId));
-    console.log('🗑️ Removed preview hotspot:', hotspotId);
   }, []);
 
   const handleCameraChange = (yaw: number, pitch: number) => {
@@ -142,18 +117,14 @@ const EditorPreview: React.FC<EditorPreviewProps> = ({
     setCurrentZoom(zoom);
   };
 
-  // Hotspot toolbar drag handlers
   const handleDragStart = (e: React.DragEvent, type: HotspotType) => {
-    console.log('🚀 Drag start:', type);
     setIsDragging(true);
     setDraggedType(type);
     e.dataTransfer.effectAllowed = 'copy';
     e.dataTransfer.setData('hotspot-type', type);
-    console.log('📦 DataTransfer set:', e.dataTransfer.getData('hotspot-type'));
   };
 
   const handleDragEnd = () => {
-    console.log('🏁 Drag end');
     setIsDragging(false);
     setDraggedType(null);
   };
@@ -161,98 +132,53 @@ const EditorPreview: React.FC<EditorPreviewProps> = ({
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'copy';
-    // Add visual feedback
     e.currentTarget.classList.add('drag-over');
-    // console.log('🔄 Drag over'); // Comment out to avoid spam
   };
 
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
-    // Remove visual feedback
     e.currentTarget.classList.remove('drag-over');
   };
 
   const handleDrop = (e: React.DragEvent) => {
-    console.log('🎯 Drop event triggered');
     e.preventDefault();
     e.stopPropagation();
-    
-    // Remove drag-over class
     e.currentTarget.classList.remove('drag-over');
     
     const type = e.dataTransfer.getData('hotspot-type') as HotspotType;
-    console.log('📥 Retrieved type from drop:', type);
     
     if (editMode && onHotspotPlace && type) {
-      // Calculate coordinates using the same method as VRScene
       const rect = e.currentTarget.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
       
-      console.log('📍 Drop coordinates:', { 
-        x, y, 
-        canvas: { width: rect.width, height: rect.height },
-        rect,
-        relativePosition: {
-          x: (x / rect.width).toFixed(3),
-          y: (y / rect.height).toFixed(3)
-        },
-        screenPosition: `${Math.round((x / rect.width) * 100)}% from left, ${Math.round((y / rect.height) * 100)}% from top`
-      });
-      
-      // ✅ PERFECT SOLUTION: Use shared raycasting utility!
-      // This ensures EXACT same coordinate system as VRScene click
-      
-      console.log('🎯 USING SHARED RAYCASTING UTILITY');
-      
-      // Get Three.js canvas and objects from VRScene
       const canvas = getThreeCanvas(e.currentTarget as HTMLElement);
-      
-      if (!canvas) {
-        console.error('❌ Cannot find Three.js canvas for raycasting');
-        return;
-      }
-      
-      // Get Three.js camera and sphere mesh from VRScene
-      // Note: We'll need to expose these via VRScene or get them via context
-      // For now, use a temporary approach by storing them globally
       const camera = (window as any).vrSceneCamera;
       const sphereMesh = (window as any).vrSphereMesh;
       
-      if (!camera || !sphereMesh) {
-        console.warn('⚠️ Three.js objects not available, falling back to coordinate calculation');
-        // Fallback to simpler calculation if objects not available
+      let finalCoord;
+      
+      if (canvas && camera && sphereMesh) {
+        const raycastResult = performSharedRaycasting(e.clientX, e.clientY, canvas, camera, sphereMesh);
+        finalCoord = raycastResult;
+      } else {
+        // Fallback calculation
         const centerX = rect.width / 2;
         const centerY = rect.height / 2;
-        const offsetX = (x - centerX) / centerX;  // -1 to 1
-        const offsetY = (centerY - y) / centerY;  // -1 to 1, flipped Y
+        const offsetX = (x - centerX) / centerX;
+        const offsetY = (centerY - y) / centerY;
         
         const fovRad = (currentZoom * Math.PI) / 180;
         const yawOffset = offsetX * (fovRad / 2) * (rect.width / rect.height) * (180 / Math.PI);
         const pitchOffset = offsetY * (fovRad / 2) * (180 / Math.PI);
         
-        var finalCoord = {
+        finalCoord = {
           yaw: (currentYaw + yawOffset + 360) % 360,
           pitch: Math.max(-90, Math.min(90, currentPitch + pitchOffset))
         };
-      } else {
-        // ✅ Use perfect shared raycasting!
-        const absoluteX = e.clientX;
-        const absoluteY = e.clientY;
-        
-        const raycastResult = performSharedRaycasting(absoluteX, absoluteY, canvas, camera, sphereMesh);
-        
-        if (raycastResult) {
-          var finalCoord = raycastResult;
-          console.log('✅ SHARED RAYCASTING SUCCESS:', finalCoord);
-        } else {
-          console.error('❌ Shared raycasting failed');
-          return;
-        }
       }
       
-      // Call parent callback để notify about new hotspot placement
-      if (onHotspotPlace) {
+      if (finalCoord && onHotspotPlace) {
         onHotspotPlace(finalCoord.yaw, finalCoord.pitch, type);
       }
     }
@@ -271,28 +197,29 @@ const EditorPreview: React.FC<EditorPreviewProps> = ({
     }
   };
 
-  // ✅ Memoize converted preview hotspots to prevent excessive re-calculations
   const convertedPreviewHotspots = useMemo(() => {
-    if (previewHotspots.length === 0) {
-      return [];
-    }
-    
-    const converted = previewHotspots.map((hotspot, index) => ({
-      id: -1000 - index, // Ensure negative unique IDs để tránh conflict với real hotspots
+    return previewHotspots.map((hotspot, index) => ({
+      id: -1000 - index,
       from_scene: activeScene?.id || 0,
-      to_scene: -1, // Temporary scene ID for preview
+      to_scene: -1,
       yaw: hotspot.yaw,
       pitch: hotspot.pitch,
       label: `${hotspot.type} hotspot`,
-      size: 40, // Larger size for better visibility
-      color: '#ff6644', // Orange-red color for preview hotspots
-      type: hotspot.type, // Pass the hotspot type
-      icon: hotspot.icon, // Pass the emoji icon
-      isPreview: true // Mark as preview
+      size: 40,
+      color: '#ff6644',
+      type: hotspot.type,
+      icon: hotspot.icon,
+      isPreview: true
     }));
-    
-    return converted;
   }, [previewHotspots, activeScene?.id]);
+
+  // ✅ CRITICAL FIX: Memoize combined hotspots array to prevent re-mounting
+  const combinedHotspots = useMemo(() => {
+    return [
+      ...(activeScene?.navigation_connections || []),
+      ...convertedPreviewHotspots
+    ];
+  }, [activeScene?.navigation_connections, convertedPreviewHotspots]);
 
   if (!activeScene) {
     return (
@@ -315,20 +242,18 @@ const EditorPreview: React.FC<EditorPreviewProps> = ({
         onDragLeave={handleDragLeave}
       >
         <VRScene
+          key={`scene-${activeSceneId}-mode-${editMode ? 'edit' : 'preview'}`}
           panoramaUrl={activeScene.panorama_image}
           yaw={currentYaw}
           pitch={currentPitch}
           zoomLevel={currentZoom}
-          hotspots={[
-            ...(activeScene.navigation_connections || []),
-            // ✅ Use memoized converted preview hotspots
-            ...convertedPreviewHotspots
-          ]}
+          hotspots={combinedHotspots}
           checkpoints={activeScene.checkpoints || []}
           onHotspotClick={handleSceneChange}
           onCameraChange={handleCameraChange}
           onZoomChange={handleZoomChange}
           onSceneClick={handleClick}
+          previewMode={true}
         />
 
         {/* Hotspot Toolbar */}

@@ -55,12 +55,13 @@ const SceneViewer: React.FC<SceneViewerProps> = ({
 
       <VRScene
         panoramaUrl={scene.panorama_image || ''}
-        initialYaw={scene.initial_yaw}
-        initialPitch={scene.initial_pitch}
+        yaw={scene.initial_yaw}
+        pitch={scene.initial_pitch}
         hotspots={hotspots}
         onHotspotClick={handleHotspotClick}
         onImageLoad={handleImageLoad}
         onImageError={handleImageError}
+        previewMode={true}
       />
 
       {scene.voiceover_audio && (

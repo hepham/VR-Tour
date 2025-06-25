@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import SceneViewer from '../SceneViewer';
 import './styles.css';
 
@@ -25,9 +25,21 @@ interface Scene {
   order: number;
 }
 
+interface Hotspot {
+  id: number;
+  from_scene: number;
+  to_scene: number;
+  yaw: number;
+  pitch: number;
+  label: string;
+  size: number;
+  color: string;
+}
+
 const TourViewer: React.FC<TourViewerProps> = ({ tourId, onBack }) => {
   const [tour, setTour] = useState<Tour | null>(null);
   const [scenes, setScenes] = useState<Scene[]>([]);
+  const [hotspots, setHotspots] = useState<Hotspot[]>([]);
   const [currentSceneIndex, setCurrentSceneIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -53,6 +65,13 @@ const TourViewer: React.FC<TourViewerProps> = ({ tourId, onBack }) => {
         const scenesData = await scenesResponse.json();
         setScenes(scenesData.sort((a: Scene, b: Scene) => a.order - b.order));
         
+        // Fetch hotspots for all scenes
+        const hotspotsResponse = await fetch(`/api/tours/${tourId}/navigation/`);
+        if (hotspotsResponse.ok) {
+          const navigationData = await hotspotsResponse.json();
+          setHotspots(navigationData.connections || []);
+        }
+        
       } catch (err) {
         console.error('Error fetching tour data:', err);
         setError(err instanceof Error ? err.message : 'Unknown error');
@@ -65,9 +84,23 @@ const TourViewer: React.FC<TourViewerProps> = ({ tourId, onBack }) => {
   }, [tourId]);
 
   const handleSceneChange = (sceneId: number) => {
+    console.log('🎬 [TourViewer] Scene change requested:', {
+      currentSceneId: currentScene?.id,
+      currentSceneTitle: currentScene?.title,
+      targetSceneId: sceneId,
+      currentIndex: currentSceneIndex,
+      totalScenes: scenes.length
+    });
+    
     const sceneIndex = scenes.findIndex(scene => scene.id === sceneId);
     if (sceneIndex !== -1) {
+      console.log('✅ [TourViewer] Scene found, changing to index:', sceneIndex);
       setCurrentSceneIndex(sceneIndex);
+    } else {
+      console.log('❌ [TourViewer] Scene not found in scenes array:', {
+        targetSceneId: sceneId,
+        availableScenes: scenes.map(s => ({ id: s.id, title: s.title }))
+      });
     }
   };
 
@@ -126,6 +159,11 @@ const TourViewer: React.FC<TourViewerProps> = ({ tourId, onBack }) => {
 
   const currentScene = scenes[currentSceneIndex];
 
+  // ✅ CRITICAL FIX: Memoize filtered hotspots to prevent re-mounting
+  const currentSceneHotspots = useMemo(() => {
+    return hotspots.filter(h => h.from_scene === currentScene?.id);
+  }, [hotspots, currentScene?.id]);
+
   return (
     <div className="tour-viewer-container">
       <header className="tour-header">
@@ -166,7 +204,9 @@ const TourViewer: React.FC<TourViewerProps> = ({ tourId, onBack }) => {
       <div className="scene-viewer-container">
         <SceneViewer
           scene={currentScene}
+          hotspots={currentSceneHotspots}
           onSceneChange={handleSceneChange}
+          isAudioEnabled={true}
         />
       </div>
 

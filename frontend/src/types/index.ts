@@ -111,6 +111,8 @@ export interface NavigationConnection {
   type?: string; // Hotspot type (map, image, video, article, link, navigation)
   icon?: string; // Emoji icon for the hotspot
   isPreview?: boolean; // Whether this is a preview hotspot from drag & drop
+  action_type?: string; // Action type (navigation, image, video, link, info, none) - defaults to 'none'
+  url?: string; // URL for link type hotspots
 }
 
 export interface CameraPosition {

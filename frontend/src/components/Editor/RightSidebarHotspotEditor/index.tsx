@@ -4,6 +4,7 @@ import './styles.css';
 
 interface RightSidebarHotspotEditorProps {
   scene: Scene;
+  scenes?: Scene[]; // Add scenes array for target scene selection
   onUpdateScene: (updates: Partial<Scene>) => void;
 }
 
@@ -36,9 +37,12 @@ const HOTSPOT_ICONS: HotspotIcon[] = [
 
 const RightSidebarHotspotEditor: React.FC<RightSidebarHotspotEditorProps> = ({
   scene,
+  scenes = [],
   onUpdateScene,
 }) => {
   const [selectedHotspotId, setSelectedHotspotId] = useState<number | null>(null);
+  const [targetSceneInput, setTargetSceneInput] = useState<string>('');
+  const [isUserTyping, setIsUserTyping] = useState(false); // Track if user is actively typing
   const [showIconPicker, setShowIconPicker] = useState(false);
 
   const hotspots = scene.navigation_connections || [];
@@ -49,9 +53,24 @@ const RightSidebarHotspotEditor: React.FC<RightSidebarHotspotEditorProps> = ({
   };
 
   const handleHotspotUpdate = (hotspotId: number, updates: Partial<NavigationConnection>) => {
+    console.log('🔧 [RightSidebarHotspotEditor] Hotspot update triggered:', {
+      hotspotId: hotspotId,
+      updates: updates,
+      sceneId: scene.id,
+      sceneTitle: scene.title,
+      totalHotspots: hotspots.length,
+      updatingFields: Object.keys(updates)
+    });
+    
     const updatedHotspots = hotspots.map(hotspot =>
       hotspot.id === hotspotId ? { ...hotspot, ...updates } : hotspot
     );
+    
+    console.log('🔄 [RightSidebarHotspotEditor] Updated hotspots array:', {
+      before: hotspots.find(h => h.id === hotspotId),
+      after: updatedHotspots.find(h => h.id === hotspotId),
+      totalCount: updatedHotspots.length
+    });
     
     onUpdateScene({ navigation_connections: updatedHotspots });
   };
@@ -63,6 +82,28 @@ const RightSidebarHotspotEditor: React.FC<RightSidebarHotspotEditorProps> = ({
   };
 
   const selectedHotspot = hotspots.find(h => h.id === selectedHotspotId);
+
+  // Update input when selectedHotspot changes (but not when user is typing)
+  React.useEffect(() => {
+    if (!isUserTyping && selectedHotspot) {
+      if ((selectedHotspot as any).action_type === 'navigation' || !(selectedHotspot as any).action_type) {
+        // For navigation: Show scene title if found, otherwise empty
+        const currentScene = scenes.find(s => s.id === selectedHotspot.to_scene);
+        setTargetSceneInput(currentScene?.title || '');
+      } else {
+        // For other actions: Show action_target
+        setTargetSceneInput((selectedHotspot as any).action_target || '');
+      }
+    } else if (!selectedHotspot) {
+      setTargetSceneInput('');
+      setIsUserTyping(false);
+    }
+  }, [selectedHotspot, scenes, isUserTyping]);
+
+  // Reset typing state when hotspot selection changes
+  React.useEffect(() => {
+    setIsUserTyping(false);
+  }, [selectedHotspotId]);
 
   return (
     <div className="right-sidebar-hotspot-editor">
@@ -263,10 +304,11 @@ const RightSidebarHotspotEditor: React.FC<RightSidebarHotspotEditorProps> = ({
             <label>Action</label>
             <select
               className="form-select"
-              value={(selectedHotspot as any).action_type || 'navigate'}
+              value={(selectedHotspot as any).action_type || 'none'}
               onChange={(e) => handleHotspotUpdate(selectedHotspot.id, { action_type: e.target.value } as any)}
             >
-              <option value="navigate">Navigate to Scene</option>
+              <option value="none">Display Only (No Action)</option>
+              <option value="navigation">Navigate to Scene</option>
               <option value="info">Show Information</option>
               <option value="image">Show Image</option>
               <option value="video">Play Video</option>
@@ -274,16 +316,80 @@ const RightSidebarHotspotEditor: React.FC<RightSidebarHotspotEditorProps> = ({
             </select>
           </div>
 
-          {/* Action URL/Target */}
+          {/* Target Scene/URL */}
           <div className="editor-group">
-            <label>Target/URL</label>
+            <label>Target Scene/URL</label>
             <input
               type="text"
               className="form-input"
-              value={(selectedHotspot as any).action_target || ''}
-              onChange={(e) => handleHotspotUpdate(selectedHotspot.id, { action_target: e.target.value } as any)}
-              placeholder="Scene ID, URL, or file path"
+              value={targetSceneInput}
+              onChange={(e) => {
+                const inputValue = e.target.value;
+                setIsUserTyping(true); // Mark that user is actively typing
+                setTargetSceneInput(inputValue); // Update UI immediately
+                
+                if ((selectedHotspot as any).action_type === 'navigation' || !(selectedHotspot as any).action_type) {
+                  // For navigation: Map scene title to scene ID
+                  if (inputValue === '') {
+                    // Clear selection if empty
+                    handleHotspotUpdate(selectedHotspot.id, { to_scene: 0 });
+                  } else {
+                    const targetScene = scenes.find(s => 
+                      s.title.toLowerCase().includes(inputValue.toLowerCase()) && s.id !== scene.id
+                    );
+                    
+                    console.log('🎯 [RightSidebarHotspotEditor] Scene title mapping:', {
+                      hotspotId: selectedHotspot.id,
+                      inputTitle: inputValue,
+                      foundScene: targetScene,
+                      oldSceneId: selectedHotspot.to_scene,
+                      newSceneId: targetScene?.id || 0
+                    });
+                    
+                    if (targetScene) {
+                      handleHotspotUpdate(selectedHotspot.id, { to_scene: targetScene.id });
+                    } else {
+                      // Scene not found, clear to_scene but keep input value for user feedback
+                      handleHotspotUpdate(selectedHotspot.id, { to_scene: 0 });
+                    }
+                  }
+                } else {
+                  // For other actions: Save as action_target
+                  handleHotspotUpdate(selectedHotspot.id, { action_target: inputValue } as any);
+                }
+              }}
+              onBlur={() => {
+                // Reset typing state when user finishes typing
+                setTimeout(() => setIsUserTyping(false), 100);
+              }}
+              placeholder={((selectedHotspot as any).action_type === 'navigation' || !(selectedHotspot as any).action_type) 
+                ? "Enter scene title to navigate to..."
+                : "URL, file path, or resource identifier"
+              }
             />
+            
+            {/* Scene status and suggestions for navigation */}
+            {((selectedHotspot as any).action_type === 'navigation' || !(selectedHotspot as any).action_type) && (
+              <div>
+                {/* Scene status */}
+                {targetSceneInput && targetSceneInput !== '' && (
+                  <div className={`scene-status ${
+                    scenes.find(s => s.title.toLowerCase().includes(targetSceneInput.toLowerCase()) && s.id !== scene.id)
+                      ? 'scene-found' : 'scene-not-found'
+                  }`}>
+                    {scenes.find(s => s.title.toLowerCase().includes(targetSceneInput.toLowerCase()) && s.id !== scene.id)
+                      ? `✅ Found: ${scenes.find(s => s.title.toLowerCase().includes(targetSceneInput.toLowerCase()) && s.id !== scene.id)?.title}`
+                      : '❌ Scene not found'
+                    }
+                  </div>
+                )}
+                
+                {/* Scene suggestions */}
+                <div className="scene-suggestions">
+                  <small>Available scenes: {scenes.filter(s => s.id !== scene.id).map(s => s.title).join(', ')}</small>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

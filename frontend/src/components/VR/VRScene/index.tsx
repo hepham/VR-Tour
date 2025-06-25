@@ -43,6 +43,7 @@ interface VRSceneProps {
   onCameraChange?: (yaw: number, pitch: number) => void;
   onZoomChange?: (zoom: number) => void;
   onSceneClick?: (yaw: number, pitch: number) => void;
+  previewMode?: boolean; // true = allow navigation, false = block navigation
 }
 
 // ✅ Interface để expose Three.js objects cho shared raycasting
@@ -300,6 +301,7 @@ const VRScene = React.forwardRef<VRSceneRef, VRSceneProps>(({
   onCameraChange,
   onZoomChange,
   onSceneClick,
+  previewMode = false,
 }, ref) => {
   const controlsRef = useRef<any>(null);
   const cameraRef = useRef<any>(null);
@@ -325,20 +327,8 @@ const VRScene = React.forwardRef<VRSceneRef, VRSceneProps>(({
       const azimuthal = controlsRef.current.getAzimuthalAngle(); // radians
       const polar = controlsRef.current.getPolarAngle(); // radians
       
-      console.log('📷 CAMERA RAW ANGLES:', {
-        azimuthal_rad: azimuthal,
-        polar_rad: polar,
-        azimuthal_deg: (azimuthal * 180) / Math.PI,
-        polar_deg: (polar * 180) / Math.PI
-      });
-      
-      // ✅ Sử dụng cùng offset với cartesianToSpherical (-180°)
       let yaw = (azimuthal * 180) / Math.PI;
-      console.log('📷 CAMERA YAW CALCULATION:', {
-        step1_raw_degrees: yaw,
-        step2_offset_applied: ((yaw - 180) + 360) % 360
-      });
-      yaw = ((yaw - 180) + 360) % 360; // Same as cartesianToSpherical
+      yaw = ((yaw - 180) + 360) % 360;
       
       const pitch = 90 - (polar * 180) / Math.PI;
       return { yaw: Math.round(yaw), pitch: Math.round(pitch) };
@@ -351,11 +341,23 @@ const VRScene = React.forwardRef<VRSceneRef, VRSceneProps>(({
     if (controlsRef.current) {
       // Add event listener for camera changes
       const handleCameraChange = (yaw: number, pitch: number) => {
+        // 📍 Log hotspot positions when camera moves
+        if (hotspots.length > 0) {
+          console.log('📍 [VRScene] Camera moved, hotspot positions:');
+          hotspots.forEach((hotspot, index) => {
+            const [x, y, z] = sphericalToCartesian(hotspot.yaw, hotspot.pitch);
+            console.log(`  Hotspot ${hotspot.id} (${hotspot.label || 'No label'}):`, {
+              spherical: { yaw: hotspot.yaw, pitch: hotspot.pitch },
+              cartesian: { x: x.toFixed(2), y: y.toFixed(2), z: z.toFixed(2) },
+              isPreview: hotspot.id < 0 ? '🔴 Preview' : '🟢 Real'
+            });
+          });
+          console.log(`  Camera: yaw=${yaw.toFixed(1)}°, pitch=${pitch.toFixed(1)}°`);
+        }
+        
         onCameraChange?.(yaw, pitch);
       };
 
-      // Disabled continuous camera updates for performance
-      
       // Call once initially
       handleCameraChange(yaw, pitch);
 
@@ -369,7 +371,7 @@ const VRScene = React.forwardRef<VRSceneRef, VRSceneProps>(({
         }
       };
     }
-  }, [onCameraChange]);
+  }, [onCameraChange, hotspots, yaw, pitch]);
 
   // Add wheel event listener for zoom with throttling
   useEffect(() => {
@@ -377,28 +379,21 @@ const VRScene = React.forwardRef<VRSceneRef, VRSceneProps>(({
     const throttleDelay = 16; // ~60fps throttling
     
     const handleWheel = (event: WheelEvent) => {
-      // Only handle wheel events when over canvas, not UI elements
-      if (!(event.target instanceof HTMLCanvasElement)) {
-        return;
-      }
+      if (!(event.target instanceof HTMLCanvasElement)) return;
       
       event.preventDefault();
       
       const now = Date.now();
-      if (now - lastWheelTime < throttleDelay) {
-        return;
-      }
+      if (now - lastWheelTime < throttleDelay) return;
       lastWheelTime = now;
       
       const delta = event.deltaY;
-      const zoomStep = 3; // Smaller step for even smoother zooming
+      const zoomStep = 3;
       
       let newZoom = zoomLevel;
       if (delta > 0) {
-        // Scroll down = zoom out (increase FOV)
         newZoom = Math.min(120, zoomLevel + zoomStep);
       } else {
-        // Scroll up = zoom in (decrease FOV)
         newZoom = Math.max(30, zoomLevel - zoomStep);
       }
       
@@ -407,17 +402,11 @@ const VRScene = React.forwardRef<VRSceneRef, VRSceneProps>(({
       }
     };
 
-    // Add event listener to window instead of canvas to avoid conflicts
     window.addEventListener('wheel', handleWheel, { passive: false });
-    
-    return () => {
-      window.removeEventListener('wheel', handleWheel);
-    };
+    return () => window.removeEventListener('wheel', handleWheel);
   }, [zoomLevel, onZoomChange]);
 
-  // Convert spherical coordinates to 3D position for hotspots and checkpoints
   const sphericalToCartesian = (yaw: number, pitch: number, radius: number = 450) => {
-    // Convert to radians - aligned with coordinate system
     const yawRad = (yaw * Math.PI) / 180;
     const pitchRad = (pitch * Math.PI) / 180;
     
@@ -442,12 +431,9 @@ const VRScene = React.forwardRef<VRSceneRef, VRSceneProps>(({
         onCreated={({ camera, gl }) => {
           camera.position.set(0, 0, 0);
           gl.setSize(window.innerWidth, window.innerHeight);
-          // Disable tone mapping to preserve original colors
-          gl.toneMapping = 0; // THREE.NoToneMapping
+          gl.toneMapping = 0;
           gl.toneMappingExposure = 1.0;
           gl.outputColorSpace = 'srgb';
-          
-          // Expose camera globally for coordinate calculations
           (window as any).vrSceneCamera = camera;
         }}
       >
@@ -484,13 +470,23 @@ const VRScene = React.forwardRef<VRSceneRef, VRSceneProps>(({
           controlsRef={controlsRef}
         />
 
-        {/* Render hotspots */}
         {hotspots.map((hotspot, index) => {
           let [x, y, z] = sphericalToCartesian(hotspot.yaw, hotspot.pitch);
           
-          // Offset preview hotspots to avoid overlapping
           if (hotspot.id < 0) {
-            z += 5; // Move preview hotspots slightly forward
+            z += 5;
+          }
+          
+          // 🎯 Log final render position (throttled to avoid spam)
+          if (index === 0 && Math.random() < 0.1) { // Only log first hotspot 10% of time
+            console.log('🎯 [VRScene] RENDER hotspot position:', {
+              id: hotspot.id,
+              label: hotspot.label || 'No label',
+              spherical: { yaw: hotspot.yaw, pitch: hotspot.pitch },
+              finalPosition: { x: x.toFixed(2), y: y.toFixed(2), z: z.toFixed(2) },
+              isPreview: hotspot.id < 0,
+              timestamp: new Date().toLocaleTimeString()
+            });
           }
           
           return (
@@ -498,23 +494,72 @@ const VRScene = React.forwardRef<VRSceneRef, VRSceneProps>(({
               key={`hotspot-${hotspot.id}-${index}`}
               position={[x, y, z]}
               hotspot={hotspot}
-              onClick={() => onHotspotClick(hotspot.to_scene)}
+              onClick={() => {
+                if (!previewMode) {
+                  console.log('🚫 [VRScene] Navigation blocked - not in preview mode');
+                  return;
+                }
+
+                console.log('🎯 [VRScene] Hotspot clicked in preview mode:', {
+                  hotspot: hotspot,
+                  targetScene: hotspot.to_scene,
+                  actionType: hotspot.action_type || 'none',
+                  '🔗 SCREEN ID TO NAVIGATE TO': hotspot.to_scene
+                });
+
+                // Smart action handling based on type
+                switch (hotspot.action_type) {
+                  case 'navigation':
+                  case 'navigate':
+                    if (hotspot.to_scene && onHotspotClick) {
+                      console.log('🔄 [VRScene] Triggering navigation to scene:', hotspot.to_scene);
+                      onHotspotClick(hotspot.to_scene);
+                    }
+                    break;
+                  
+                  case 'image':
+                    console.log('🖼️ [VRScene] Image hotspot clicked - should show image modal');
+                    // TODO: Implement image modal
+                    break;
+                  
+                  case 'video':
+                    console.log('🎥 [VRScene] Video hotspot clicked - should play video');
+                    // TODO: Implement video player
+                    break;
+                  
+                  case 'link':
+                    console.log('🔗 [VRScene] Link hotspot clicked - should open URL');
+                    if (hotspot.url) {
+                      window.open(hotspot.url, '_blank');
+                    }
+                    break;
+                  
+                  case 'info':
+                    console.log('ℹ️ [VRScene] Info hotspot clicked - should show info panel');
+                    // TODO: Implement info panel
+                    break;
+                  
+                  case 'none':
+                  case null:
+                  case undefined:
+                  default:
+                    console.log('👁️ [VRScene] Display-only hotspot clicked - no action (action_type:', hotspot.action_type, ')');
+                    // Just show icon, no action - this is the default behavior
+                    break;
+                }
+              }}
             />
           );
         })}
 
-        {/* Render checkpoints */}
-        {checkpoints.map((checkpoint, index) => {
-          const checkpointPosition = sphericalToCartesian(checkpoint.yaw, checkpoint.pitch) as [number, number, number];
-          return (
-            <CheckpointMarker
-              key={`checkpoint-${checkpoint.id}-${index}`}
-              position={checkpointPosition}
-              checkpoint={checkpoint}
-              onClick={() => onCheckpointClick?.(checkpoint)}
-            />
-          );
-        })}
+        {checkpoints.map((checkpoint, index) => (
+          <CheckpointMarker
+            key={`checkpoint-${checkpoint.id}-${index}`}
+            position={sphericalToCartesian(checkpoint.yaw, checkpoint.pitch) as [number, number, number]}
+            checkpoint={checkpoint}
+            onClick={() => onCheckpointClick?.(checkpoint)}
+          />
+        ))}
       </Canvas>
     </div>
   );

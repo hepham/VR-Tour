@@ -6,6 +6,7 @@ import './styles.css';
 
 interface RightSidebarProps {
   scene: Scene | null;
+  scenes?: Scene[]; // Add scenes array for hotspot target selection
   activeTab: 'scene-config' | 'hotspots';
   onTabChange: (tab: 'scene-config' | 'hotspots') => void;
   onUpdateScene: (updates: Partial<Scene>) => void;
@@ -13,6 +14,7 @@ interface RightSidebarProps {
 
 const RightSidebar: React.FC<RightSidebarProps> = ({
   scene,
+  scenes = [],
   activeTab,
   onTabChange,
   onUpdateScene,
@@ -63,6 +65,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
         {activeTab === 'hotspots' && (
           <RightSidebarHotspotEditor
             scene={scene}
+            scenes={scenes}
             onUpdateScene={onUpdateScene}
           />
         )}

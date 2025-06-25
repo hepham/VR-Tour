@@ -188,12 +188,10 @@ Bên trong hố sụt có vi khí hậu đặc biệt với độ ẩm cao và n
   ];
 
   const handleHotspotClick = (sceneId: number) => {
-    console.log('Hotspot clicked, would navigate to scene:', sceneId);
+    // Demo mode - no navigation
   };
 
   const handleCheckpointClick = (checkpoint: any) => {
-
-    console.log('Checkpoint clicked:', checkpoint);
     setSelectedCheckpoint(checkpoint);
     setIsCheckpointModalOpen(true);
   };
@@ -557,6 +555,7 @@ Bên trong hố sụt có vi khí hậu đặc biệt với độ ẩm cao và n
           onImageError={handleImageError}
           onCameraChange={handleCameraChange}
           onZoomChange={handleZoomChange}
+          previewMode={true}
         />
 
         <Controls

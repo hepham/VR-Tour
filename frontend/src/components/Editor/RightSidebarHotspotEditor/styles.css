@@ -424,4 +424,40 @@
     flex-direction: column;
     gap: 8px;
   }
+}
+
+/* Scene Suggestions */
+.scene-suggestions {
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 4px;
+}
+
+.scene-suggestions small {
+  color: #93c5fd;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+/* Scene Status */
+.scene-status {
+  margin-top: 6px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.scene-status.scene-found {
+  background: rgba(34, 197, 94, 0.1);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  color: #4ade80;
+}
+
+.scene-status.scene-not-found {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #f87171;
 } 
