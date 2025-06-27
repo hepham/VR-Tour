@@ -10,6 +10,7 @@ import {
   type SphericalCoordinate,
   type CameraState 
 } from '../../../utils/coordinateSystem';
+import { HOTSPOT_ICONS } from '../../../constants/hotspots';
 import './styles.css';
 
 interface EditorPreviewProps {
@@ -23,15 +24,19 @@ interface EditorPreviewProps {
   onSceneChange?: (sceneId: number) => void;
 }
 
-type HotspotType = 'map' | 'image' | 'video' | 'article' | 'link';
+// Use unified icon system - filter for commonly used drag & drop types
+type HotspotType = string;
 
-const HOTSPOT_TYPES: { type: HotspotType; icon: string; label: string }[] = [
-  { type: 'map', icon: '🗺️', label: 'Map' },
-  { type: 'image', icon: '🖼️', label: 'Image' },
-  { type: 'video', icon: '🎥', label: 'Video' },
-  { type: 'article', icon: '📄', label: 'Article' },
-  { type: 'link', icon: '🔗', label: 'Link' },
-];
+const EDITOR_HOTSPOT_TYPES = HOTSPOT_ICONS.filter(icon => 
+  ['map', 'image', 'video', 'document', 'link', 'info', 'star'].includes(icon.id)
+).map(icon => ({
+  type: icon.id as HotspotType,
+  icon: icon.icon,
+  label: icon.label
+}));
+
+// Create HOTSPOT_TYPES alias for backwards compatibility
+const HOTSPOT_TYPES = EDITOR_HOTSPOT_TYPES;
 
 const EditorPreview: React.FC<EditorPreviewProps> = ({
   tour,
@@ -207,8 +212,7 @@ const EditorPreview: React.FC<EditorPreviewProps> = ({
       label: `${hotspot.type} hotspot`,
       size: 40,
       color: '#ff6644',
-      type: hotspot.type,
-      icon: hotspot.icon,
+      icon_type: hotspot.type, // Use unified icon_type system
       isPreview: true
     }));
   }, [previewHotspots, activeScene?.id]);

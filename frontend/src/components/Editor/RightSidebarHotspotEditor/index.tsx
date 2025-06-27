@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Scene, NavigationConnection } from '../../../types';
+import { HOTSPOT_ICONS, type HotspotIcon } from '../../../constants/hotspots';
 import './styles.css';
 
 interface RightSidebarHotspotEditorProps {
@@ -7,33 +8,6 @@ interface RightSidebarHotspotEditorProps {
   scenes?: Scene[]; // Add scenes array for target scene selection
   onUpdateScene: (updates: Partial<Scene>) => void;
 }
-
-interface HotspotIcon {
-  id: string;
-  icon: string;
-  label: string;
-  category: 'navigation' | 'information' | 'media';
-}
-
-const HOTSPOT_ICONS: HotspotIcon[] = [
-  // Navigation
-  { id: 'arrow', icon: '➡️', label: 'Arrow', category: 'navigation' },
-  { id: 'door', icon: '🚪', label: 'Door', category: 'navigation' },
-  { id: 'stairs', icon: '🏃‍♂️', label: 'Stairs', category: 'navigation' },
-  { id: 'elevator', icon: '🛗', label: 'Elevator', category: 'navigation' },
-  
-  // Information
-  { id: 'info', icon: 'ℹ️', label: 'Information', category: 'information' },
-  { id: 'question', icon: '❓', label: 'Question', category: 'information' },
-  { id: 'warning', icon: '⚠️', label: 'Warning', category: 'information' },
-  { id: 'star', icon: '⭐', label: 'Featured', category: 'information' },
-  
-  // Media
-  { id: 'image', icon: '🖼️', label: 'Image', category: 'media' },
-  { id: 'video', icon: '🎥', label: 'Video', category: 'media' },
-  { id: 'audio', icon: '🔊', label: 'Audio', category: 'media' },
-  { id: 'document', icon: '📄', label: 'Document', category: 'media' },
-];
 
 const RightSidebarHotspotEditor: React.FC<RightSidebarHotspotEditorProps> = ({
   scene,

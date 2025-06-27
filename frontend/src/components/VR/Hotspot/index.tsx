@@ -1,9 +1,9 @@
 import React, { useRef, useState, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Mesh, Vector3 } from 'three';
+import { Mesh } from 'three';
 import { Html } from '@react-three/drei';
 import { NavigationConnection } from '../../../types';
-import { HOTSPOT_ICONS } from '../../../constants/hotspots';
+import { getHotspotIcon, HOTSPOT_ICONS_LEGACY } from '../../../constants/hotspots';
 
 interface HotspotProps {
   position: [number, number, number];
@@ -32,9 +32,23 @@ const Hotspot: React.FC<HotspotProps> = ({ position, hotspot, onClick }) => {
   }
 
   // Get icon - memoized to prevent recalculation
+  // Priority: icon_type > icon > type (legacy) > default
   const icon = useMemo(() => {
-    return hotspot.icon || HOTSPOT_ICONS[hotspot.type || 'navigation'] || '🚪';
-  }, [hotspot.icon, hotspot.type]);
+    // First check for icon_type (new unified system)
+    if ((hotspot as any).icon_type) {
+      return getHotspotIcon((hotspot as any).icon_type);
+    }
+    // Then check for direct icon
+    if (hotspot.icon) {
+      return hotspot.icon;
+    }
+    // Then check legacy type system
+    if (hotspot.type && HOTSPOT_ICONS_LEGACY[hotspot.type]) {
+      return HOTSPOT_ICONS_LEGACY[hotspot.type];
+    }
+    // Default fallback
+    return '📍';
+  }, [(hotspot as any).icon_type, hotspot.icon, hotspot.type]);
 
   // Billboard effect only - optimized to reduce lookAt calls
   useFrame((state) => {

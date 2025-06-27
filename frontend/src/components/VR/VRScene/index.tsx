@@ -447,9 +447,15 @@ const VRScene = React.forwardRef<VRSceneRef, VRSceneProps>(({
     return [x, y, z];
   };
 
-  // ✅ Create a stable key for memoization - only changes when hotspot positions actually change
+  // ✅ Create a stable key for memoization - includes icon_type for icon changes
   const hotspotsKey = useMemo(() => {
-    return hotspots.map(h => `${h.id}:${h.yaw}:${h.pitch}`).join('|');
+    const key = hotspots.map(h => `${h.id}:${h.yaw}:${h.pitch}:${(h as any).icon_type || (h as any).type || (h as any).icon || 'default'}`).join('|');
+    console.log('🔑 [VRScene] Hotspots key updated:', {
+      totalHotspots: hotspots.length,
+      key: key.length > 100 ? key.substring(0, 100) + '...' : key,
+      hotspotsWithIconType: hotspots.filter(h => (h as any).icon_type).length
+    });
+    return key;
   }, [hotspots]);
 
   // ✅ Memoize hotspot positions to prevent unnecessary recalculation
@@ -536,7 +542,7 @@ const VRScene = React.forwardRef<VRSceneRef, VRSceneProps>(({
                 console.log('🎯 [VRScene] Hotspot clicked in preview mode:', {
                   hotspot: hotspot,
                   targetScene: hotspot.to_scene,
-                  actionType: hotspot.action_type || 'none',
+                  actionType: (hotspot as any).action_type || 'none',
                   '🔗 SCREEN ID TO NAVIGATE TO': hotspot.to_scene
                 });
 

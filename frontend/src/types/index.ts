@@ -108,8 +108,9 @@ export interface NavigationConnection {
   label?: string;
   size: number;
   color: string;
-  type?: string; // Hotspot type (map, image, video, article, link, navigation)
-  icon?: string; // Emoji icon for the hotspot
+  type?: string; // Legacy hotspot type (map, image, video, article, link, navigation)
+  icon?: string; // Legacy emoji icon for the hotspot
+  icon_type?: string; // New unified icon type ID (arrow, door, stairs, etc.)
   isPreview?: boolean; // Whether this is a preview hotspot from drag & drop
   action_type?: string; // Action type (navigation, image, video, link, info, none) - defaults to 'none'
   url?: string; // URL for link type hotspots

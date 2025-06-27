@@ -268,9 +268,9 @@ const TourEditor: React.FC<TourEditorProps> = ({
                           currentSceneId={selectedScene.id}
                           editMode={true}
                           onHotspotPlace={(yaw, pitch, type) => {
-                                                         const config = HOTSPOT_TYPE_CONFIGS[type || 'navigation'];
+                            const config = HOTSPOT_TYPE_CONFIGS[type || 'navigation'];
                             
-                            const newHotspot: NavigationConnection & { type?: string; icon?: string } = {
+                            const newHotspot: NavigationConnection & { type?: string; icon?: string; icon_type?: string } = {
                               id: Date.now(),
                               from_scene: selectedScene.id,
                               to_scene: 0,
@@ -279,8 +279,9 @@ const TourEditor: React.FC<TourEditorProps> = ({
                               label: config.label,
                               size: 15,
                               color: config.color,
-                              type: type || 'navigation',
-                              icon: config.icon,
+                              type: type || 'navigation', // Legacy support
+                              icon: config.icon, // Legacy support
+                              icon_type: type || 'navigation', // New unified system
                             };
 
                             updateScene(selectedScene.id, {
