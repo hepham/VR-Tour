@@ -242,7 +242,6 @@ const EditorPreview: React.FC<EditorPreviewProps> = ({
         onDragLeave={handleDragLeave}
       >
         <VRScene
-          key={`scene-${activeSceneId}-mode-${editMode ? 'edit' : 'preview'}`}
           panoramaUrl={activeScene.panorama_image}
           yaw={currentYaw}
           pitch={currentPitch}

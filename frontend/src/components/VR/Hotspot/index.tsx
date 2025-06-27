@@ -18,25 +18,41 @@ interface HotspotProps {
 const Hotspot: React.FC<HotspotProps> = ({ position, hotspot, onClick }) => {
   const meshRef = useRef<Mesh>(null);
   const [hovered, setHovered] = useState(false);
+  
+  // ✅ Debug: Track position changes
+  const lastPosition = useRef(position);
+  if (JSON.stringify(lastPosition.current) !== JSON.stringify(position)) {
+    console.log(`🚀 [Hotspot ${hotspot.id}] Position changed:`, {
+      from: lastPosition.current,
+      to: position,
+      yaw: hotspot.yaw,
+      pitch: hotspot.pitch
+    });
+    lastPosition.current = position;
+  }
 
   // Get icon - memoized to prevent recalculation
   const icon = useMemo(() => {
     return hotspot.icon || HOTSPOT_ICONS[hotspot.type || 'navigation'] || '🚪';
   }, [hotspot.icon, hotspot.type]);
 
-  // Billboard effect only - no floating to prevent movement
+  // Billboard effect only - optimized to reduce lookAt calls
   useFrame((state) => {
     if (!meshRef.current) return;
     
-    const hotspotPos = new Vector3(...position);
+    // ✅ Throttle lookAt calls - only update when camera moves significantly
+    const camera = state.camera;
+    const mesh = meshRef.current;
     
-    // Billboard: face camera
-    meshRef.current.lookAt(state.camera.position);
+    // Calculate distance between camera and last lookAt position
+    const currentCameraKey = `${camera.position.x.toFixed(1)},${camera.position.y.toFixed(1)},${camera.position.z.toFixed(1)}`;
     
-    // No floating animation - keep at exact position
-    meshRef.current.position.copy(hotspotPos);
+    if (!mesh.userData.lastCameraKey || mesh.userData.lastCameraKey !== currentCameraKey) {
+      mesh.lookAt(camera.position);
+      mesh.userData.lastCameraKey = currentCameraKey;
+    }
   });
-
+ 
   const scale = hovered ? 1.1 : 1;
 
   return (

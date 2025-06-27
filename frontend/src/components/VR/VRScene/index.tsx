@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useMemo } from 'react';
 import { Canvas, useLoader, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import { TextureLoader, Mesh, RepeatWrapping, DoubleSide } from 'three';
@@ -63,17 +63,46 @@ const CameraController: React.FC<{
   targetPitch: number;
   onCameraChange?: (yaw: number, pitch: number) => void;
 }> = ({ zoomLevel, controlsRef, targetYaw, targetPitch, onCameraChange }) => {
-  const { camera } = useThree();
-  const targetFOV = useRef(zoomLevel);
+  const isUserInteracting = useRef(false);
   const currentYaw = useRef(targetYaw);
   const currentPitch = useRef(targetPitch);
-  const isUserInteracting = useRef(false);
-  const lastUpdateTime = useRef(0);
   const lastZoomLevel = useRef(zoomLevel);
+  const targetFOV = useRef(zoomLevel);
   const lastNotificationTime = useRef(0);
   const lastCameraValues = useRef({ yaw: targetYaw, pitch: targetPitch });
   const finalUpdateTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   
+  // ✅ Track previous target values to detect scene changes
+  const prevTargetYaw = useRef(targetYaw);
+  const prevTargetPitch = useRef(targetPitch);
+
+  const { camera } = useThree();
+
+  // ✅ Immediately set camera position when target changes significantly (e.g., scene change)
+  useEffect(() => {
+    const yawChange = Math.abs(targetYaw - prevTargetYaw.current);
+    const pitchChange = Math.abs(targetPitch - prevTargetPitch.current);
+    
+    // If significant change (> 10 degrees), this is likely a scene change - set immediately
+    if ((yawChange > 10 || pitchChange > 10) && controlsRef.current) {
+      console.log('🔄 [CameraController] Scene change detected - setting camera immediately');
+      
+      currentYaw.current = targetYaw;
+      currentPitch.current = targetPitch;
+      
+      const azimuthalAngle = ((targetYaw + 180) * Math.PI) / 180;
+      const polarAngle = ((90 - targetPitch) * Math.PI) / 180;
+      
+      controlsRef.current.setAzimuthalAngle(azimuthalAngle);
+      controlsRef.current.setPolarAngle(polarAngle);
+      
+      // Update refs
+      prevTargetYaw.current = targetYaw;
+      prevTargetPitch.current = targetPitch;
+      lastCameraValues.current = { yaw: targetYaw, pitch: targetPitch };
+    }
+  }, [targetYaw, targetPitch, controlsRef]);
+
   useEffect(() => {
     targetFOV.current = zoomLevel;
   }, [zoomLevel]);
@@ -407,6 +436,7 @@ const VRScene = React.forwardRef<VRSceneRef, VRSceneProps>(({
   }, [zoomLevel, onZoomChange]);
 
   const sphericalToCartesian = (yaw: number, pitch: number, radius: number = 450) => {
+    // ✅ Ensure consistent, deterministic calculation
     const yawRad = (yaw * Math.PI) / 180;
     const pitchRad = (pitch * Math.PI) / 180;
     
@@ -416,6 +446,27 @@ const VRScene = React.forwardRef<VRSceneRef, VRSceneProps>(({
     
     return [x, y, z];
   };
+
+  // ✅ Create a stable key for memoization - only changes when hotspot positions actually change
+  const hotspotsKey = useMemo(() => {
+    return hotspots.map(h => `${h.id}:${h.yaw}:${h.pitch}`).join('|');
+  }, [hotspots]);
+
+  // ✅ Memoize hotspot positions to prevent unnecessary recalculation
+  const memoizedHotspots = useMemo(() => {
+    return hotspots.map((hotspot) => {
+      let [x, y, z] = sphericalToCartesian(hotspot.yaw, hotspot.pitch);
+      
+      if (hotspot.id < 0) {
+        z += 5;
+      }
+      
+      return {
+        ...hotspot,
+        position: [x, y, z] as [number, number, number]
+      };
+    });
+  }, [hotspotsKey]); // Use stable key instead of hotspots array reference
 
   return (
     <div style={{ width: '100%', height: '100vh', backgroundColor: '#000000' }}>
@@ -470,29 +521,11 @@ const VRScene = React.forwardRef<VRSceneRef, VRSceneProps>(({
           controlsRef={controlsRef}
         />
 
-        {hotspots.map((hotspot, index) => {
-          let [x, y, z] = sphericalToCartesian(hotspot.yaw, hotspot.pitch);
-          
-          if (hotspot.id < 0) {
-            z += 5;
-          }
-          
-          // 🎯 Log final render position (throttled to avoid spam)
-          if (index === 0 && Math.random() < 0.1) { // Only log first hotspot 10% of time
-            console.log('🎯 [VRScene] RENDER hotspot position:', {
-              id: hotspot.id,
-              label: hotspot.label || 'No label',
-              spherical: { yaw: hotspot.yaw, pitch: hotspot.pitch },
-              finalPosition: { x: x.toFixed(2), y: y.toFixed(2), z: z.toFixed(2) },
-              isPreview: hotspot.id < 0,
-              timestamp: new Date().toLocaleTimeString()
-            });
-          }
-          
+        {memoizedHotspots.map((hotspot) => {
           return (
             <Hotspot
-              key={`hotspot-${hotspot.id}-${index}`}
-              position={[x, y, z]}
+              key={`hotspot-${hotspot.id}`}
+              position={hotspot.position}
               hotspot={hotspot}
               onClick={() => {
                 if (!previewMode) {
@@ -508,12 +541,12 @@ const VRScene = React.forwardRef<VRSceneRef, VRSceneProps>(({
                 });
 
                 // Smart action handling based on type
-                switch (hotspot.action_type) {
+                switch ((hotspot as any).action_type) {
                   case 'navigation':
                   case 'navigate':
-                    if (hotspot.to_scene && onHotspotClick) {
-                      console.log('🔄 [VRScene] Triggering navigation to scene:', hotspot.to_scene);
-                      onHotspotClick(hotspot.to_scene);
+                    if ((hotspot as any).to_scene && onHotspotClick) {
+                      console.log('🔄 [VRScene] Triggering navigation to scene:', (hotspot as any).to_scene);
+                      onHotspotClick((hotspot as any).to_scene);
                     }
                     break;
                   
@@ -529,8 +562,9 @@ const VRScene = React.forwardRef<VRSceneRef, VRSceneProps>(({
                   
                   case 'link':
                     console.log('🔗 [VRScene] Link hotspot clicked - should open URL');
-                    if (hotspot.url) {
-                      window.open(hotspot.url, '_blank');
+                    const url = (hotspot as any).url || hotspot.label; // fallback to label if url not available
+                    if (url && (url.startsWith('http') || url.startsWith('https'))) {
+                      window.open(url, '_blank');
                     }
                     break;
                   
@@ -543,7 +577,7 @@ const VRScene = React.forwardRef<VRSceneRef, VRSceneProps>(({
                   case null:
                   case undefined:
                   default:
-                    console.log('👁️ [VRScene] Display-only hotspot clicked - no action (action_type:', hotspot.action_type, ')');
+                    console.log('👁️ [VRScene] Display-only hotspot clicked - no action (action_type:', (hotspot as any).action_type, ')');
                     // Just show icon, no action - this is the default behavior
                     break;
                 }
