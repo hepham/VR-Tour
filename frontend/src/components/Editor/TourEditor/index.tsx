@@ -204,8 +204,18 @@ const TourEditor: React.FC<TourEditorProps> = ({
               editMode={false}
               onExitPreview={() => setEditorState(prev => ({ ...prev, previewMode: false }))}
               onSetInitialView={(yaw, pitch, zoom) => {
-                // TODO: Handle set initial view in preview mode
-                console.log('Set initial view in preview mode:', yaw, pitch, zoom);
+                // Update the current scene's initial view even in preview mode
+                if (editorState.selectedSceneId) {
+                  updateScene(editorState.selectedSceneId, {
+                    default_yaw: yaw,
+                    default_pitch: pitch,
+                    initial_zoom: zoom
+                  } as Partial<Scene>);
+                  console.log('🎯 [TourEditor] Set initial view in preview mode:', { 
+                    sceneId: editorState.selectedSceneId, 
+                    yaw, pitch, zoom 
+                  });
+                }
               }}
             />
           </div>
@@ -268,7 +278,7 @@ const TourEditor: React.FC<TourEditorProps> = ({
                           currentSceneId={selectedScene.id}
                           editMode={true}
                           onHotspotPlace={(yaw, pitch, type) => {
-                            const config = HOTSPOT_TYPE_CONFIGS[type || 'navigation'];
+                            const config = HOTSPOT_TYPE_CONFIGS[type || 'navigation'] || { label: type || 'Hotspot', color: '#ff6644', icon: '❓' };
                             
                             const newHotspot: NavigationConnection & { type?: string; icon?: string; icon_type?: string } = {
                               id: Date.now(),
@@ -276,11 +286,11 @@ const TourEditor: React.FC<TourEditorProps> = ({
                               to_scene: 0,
                               yaw: Math.round(yaw * 100) / 100,
                               pitch: Math.round(pitch * 100) / 100,
-                              label: config.label,
+                              label: config.label || type || 'Hotspot',
                               size: 15,
-                              color: config.color,
+                              color: config.color || '#ff6644',
                               type: type || 'navigation', // Legacy support
-                              icon: config.icon, // Legacy support
+                              icon: config.icon || '❓', // Legacy support
                               icon_type: type || 'navigation', // New unified system
                             };
 

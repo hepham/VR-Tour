@@ -68,6 +68,20 @@ vr-tour-platform/
   - Configured viewing angles: yaw: 73°, pitch: -31°
   - Demonstrates full VR functionality without backend dependency
 
+## Core Utilities and Performance Systems
+- **Coordinate System**: `utils/coordinateSystem.ts` - Unified coordinate conversion system
+  - Shared raycasting utility for consistent click/drop behavior
+  - Spherical ↔ Cartesian conversion functions
+  - Debug utilities for coordinate validation
+- **Performance Optimization**: Intelligent throttling and memoization patterns
+  - User interaction awareness (60fps vs 10fps adaptive updates)
+  - Scene change detection for instant camera positioning
+  - Hotspot position memoization with stable keys
+- **Component Stability**: Anti-remounting patterns and lifecycle optimization
+  - Stable component keys to prevent unnecessary remounts
+  - Optimized useFrame hooks with position-based caching
+  - Billboard effect optimization for 3D hotspot rendering
+
 ## API Design Principles
 - RESTful architecture
 - Consistent JSON response format

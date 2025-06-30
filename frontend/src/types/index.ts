@@ -97,6 +97,11 @@ export interface NavigationScene {
   panorama_image?: string;
   map_image?: string;
   voiceover_audio?: string;
+  
+  // Enhanced camera positioning (overrides initial_yaw/initial_pitch if set)
+  default_yaw?: number;
+  default_pitch?: number;
+  initial_zoom?: number;
 }
 
 export interface NavigationConnection {

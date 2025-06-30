@@ -61,8 +61,9 @@ const CameraController: React.FC<{
   controlsRef: React.RefObject<any>;
   targetYaw: number;
   targetPitch: number;
+  sceneKey: number | string;
   onCameraChange?: (yaw: number, pitch: number) => void;
-}> = ({ zoomLevel, controlsRef, targetYaw, targetPitch, onCameraChange }) => {
+}> = ({ zoomLevel, controlsRef, targetYaw, targetPitch, sceneKey, onCameraChange }) => {
   const isUserInteracting = useRef(false);
   const currentYaw = useRef(targetYaw);
   const currentPitch = useRef(targetPitch);
@@ -72,36 +73,25 @@ const CameraController: React.FC<{
   const lastCameraValues = useRef({ yaw: targetYaw, pitch: targetPitch });
   const finalUpdateTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   
-  // ✅ Track previous target values to detect scene changes
-  const prevTargetYaw = useRef(targetYaw);
-  const prevTargetPitch = useRef(targetPitch);
+  // Track previous sceneKey to detect scene changes
+  const prevSceneKey = useRef(sceneKey);
 
   const { camera } = useThree();
 
-  // ✅ Immediately set camera position when target changes significantly (e.g., scene change)
+  // Chỉ set lại camera về góc initial khi sceneKey đổi
   useEffect(() => {
-    const yawChange = Math.abs(targetYaw - prevTargetYaw.current);
-    const pitchChange = Math.abs(targetPitch - prevTargetPitch.current);
-    
-    // If significant change (> 10 degrees), this is likely a scene change - set immediately
-    if ((yawChange > 10 || pitchChange > 10) && controlsRef.current) {
-      console.log('🔄 [CameraController] Scene change detected - setting camera immediately');
-      
-      currentYaw.current = targetYaw;
-      currentPitch.current = targetPitch;
-      
+    if (sceneKey !== prevSceneKey.current && controlsRef.current) {
       const azimuthalAngle = ((targetYaw + 180) * Math.PI) / 180;
       const polarAngle = ((90 - targetPitch) * Math.PI) / 180;
-      
       controlsRef.current.setAzimuthalAngle(azimuthalAngle);
       controlsRef.current.setPolarAngle(polarAngle);
-      
-      // Update refs
-      prevTargetYaw.current = targetYaw;
-      prevTargetPitch.current = targetPitch;
+      currentYaw.current = targetYaw;
+      currentPitch.current = targetPitch;
       lastCameraValues.current = { yaw: targetYaw, pitch: targetPitch };
+      prevSceneKey.current = sceneKey;
+      console.log('[CameraController] Set camera to initial yaw/pitch for sceneKey:', sceneKey, targetYaw, targetPitch);
     }
-  }, [targetYaw, targetPitch, controlsRef]);
+  }, [sceneKey, targetYaw, targetPitch, controlsRef]);
 
   useEffect(() => {
     targetFOV.current = zoomLevel;
@@ -499,6 +489,7 @@ const VRScene = React.forwardRef<VRSceneRef, VRSceneProps>(({
           controlsRef={controlsRef} 
           targetYaw={yaw}
           targetPitch={pitch}
+          sceneKey={panoramaUrl}
           onCameraChange={onCameraChange}
         />
         

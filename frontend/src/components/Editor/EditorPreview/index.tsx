@@ -38,6 +38,9 @@ const EDITOR_HOTSPOT_TYPES = HOTSPOT_ICONS.filter(icon =>
 // Create HOTSPOT_TYPES alias for backwards compatibility
 const HOTSPOT_TYPES = EDITOR_HOTSPOT_TYPES;
 
+const ALLOWED_HOTSPOT_TYPES = ['info', 'image', 'video', 'link', 'navigation'];
+const filteredHotspotTypes = HOTSPOT_TYPES.filter(h => ALLOWED_HOTSPOT_TYPES.includes(h.type));
+
 const EditorPreview: React.FC<EditorPreviewProps> = ({
   tour,
   scenes,
@@ -71,28 +74,49 @@ const EditorPreview: React.FC<EditorPreviewProps> = ({
   // ✅ Using centralized coordinate system from utils
   // This ensures ALL VR components use the SAME coordinate conversion logic
 
-  // Sync activeSceneId with currentSceneId prop
+  // Đồng bộ activeSceneId với currentSceneId
   useEffect(() => {
-    if (currentSceneId && currentSceneId !== activeSceneId) {
+    if (currentSceneId !== undefined && currentSceneId !== activeSceneId) {
+      console.log('[EditorPreview] currentSceneId thay đổi:', currentSceneId, 'activeSceneId:', activeSceneId);
       setActiveSceneId(currentSceneId);
-      // Find the scene and reset camera to its default position
-      const scene = scenes.find(s => s.id === currentSceneId);
+    }
+  }, [currentSceneId, activeSceneId]);
+
+  // Khi chuyển scene, reset camera về initial yaw/pitch/zoom
+  useEffect(() => {
+    if (activeSceneId !== undefined) {
+      const scene = scenes.find(s => s.id === activeSceneId);
       if (scene) {
-        setCurrentYaw(scene.default_yaw || 0);
-        setCurrentPitch(scene.default_pitch || 0);
+        const yaw = (scene.default_yaw !== undefined ? scene.default_yaw : (scene as any).initial_yaw ?? 0);
+        const pitch = (scene.default_pitch !== undefined ? scene.default_pitch : (scene as any).initial_pitch ?? 0);
+        const zoom = (scene as any).initial_zoom ?? 75;
+        console.log('[EditorPreview] Switching to scene', activeSceneId, 'yaw:', yaw, 'pitch:', pitch, 'zoom:', zoom);
+        setCurrentYaw(yaw);
+        setCurrentPitch(pitch);
+        setCurrentZoom(zoom);
+      } else {
+        console.log('[EditorPreview] Không tìm thấy scene với id', activeSceneId);
       }
     }
-  }, [currentSceneId, activeSceneId, scenes]);
+  }, [activeSceneId, scenes]);
 
   const activeScene = scenes.find(scene => scene.id === activeSceneId);
 
   const handleSceneChange = useCallback((sceneId: number) => {
+    console.log('[EditorPreview] handleSceneChange gọi với sceneId:', sceneId);
     setActiveSceneId(sceneId);
     // Reset camera to new scene's default position
     const newScene = scenes.find(s => s.id === sceneId);
     if (newScene) {
-      setCurrentYaw(newScene.default_yaw);
-      setCurrentPitch(newScene.default_pitch);
+      const yaw = (newScene.default_yaw !== undefined ? newScene.default_yaw : (newScene as any).initial_yaw ?? 0);
+      const pitch = (newScene.default_pitch !== undefined ? newScene.default_pitch : (newScene as any).initial_pitch ?? 0);
+      const zoom = (newScene as any).initial_zoom ?? 75;
+      console.log('[EditorPreview] handleSceneChange set camera:', { yaw, pitch, zoom });
+      setCurrentYaw(yaw);
+      setCurrentPitch(pitch);
+      setCurrentZoom(zoom);
+    } else {
+      console.log('[EditorPreview] handleSceneChange: Không tìm thấy scene với id', sceneId);
     }
     // Notify parent component about scene change
     if (onSceneChange) {
@@ -113,6 +137,7 @@ const EditorPreview: React.FC<EditorPreviewProps> = ({
     setPreviewHotspots(prev => prev.filter(h => h.id !== hotspotId));
   }, []);
 
+  // Khi user xoay chuột, update state
   const handleCameraChange = (yaw: number, pitch: number) => {
     setCurrentYaw(yaw);
     setCurrentPitch(pitch);
@@ -193,6 +218,7 @@ const EditorPreview: React.FC<EditorPreviewProps> = ({
   };
 
   const handleSetInitialView = () => {
+    console.log('[EditorPreview] handleSetInitialView:', { yaw: currentYaw, pitch: currentPitch, zoom: currentZoom });
     if (onSetInitialView) {
       onSetInitialView(
         Math.round(currentYaw),
@@ -226,6 +252,7 @@ const EditorPreview: React.FC<EditorPreviewProps> = ({
   }, [activeScene?.navigation_connections, convertedPreviewHotspots]);
 
   if (!activeScene) {
+    console.log('[EditorPreview] Không có activeScene, activeSceneId:', activeSceneId);
     return (
       <div className="editor-preview-error">
         <div className="error-content">
@@ -236,6 +263,8 @@ const EditorPreview: React.FC<EditorPreviewProps> = ({
     );
   }
 
+  // Đặt log ngoài JSX để tránh lỗi linter
+  console.log('[EditorPreview] Render VRScene với', { yaw: currentYaw, pitch: currentPitch, zoom: currentZoom, activeSceneId, activeScene });
   return (
     <div className="editor-preview">
       {/* VR Scene */}
@@ -246,6 +275,7 @@ const EditorPreview: React.FC<EditorPreviewProps> = ({
         onDragLeave={handleDragLeave}
       >
         <VRScene
+          key={activeSceneId}
           panoramaUrl={activeScene.panorama_image}
           yaw={currentYaw}
           pitch={currentPitch}
@@ -317,7 +347,7 @@ const EditorPreview: React.FC<EditorPreviewProps> = ({
               </div>
               
               <div className="hotspot-icons">
-                {HOTSPOT_TYPES.map((hotspot) => (
+                {filteredHotspotTypes.map((hotspot) => (
                   <div
                     key={hotspot.type}
                     className={`hotspot-icon ${draggedType === hotspot.type ? 'dragging' : ''}`}

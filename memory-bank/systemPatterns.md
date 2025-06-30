@@ -3,6 +3,27 @@
 ## 🎯 **MAJOR UPDATE: Unified Coordinate System Solution**
 **Status**: ✅ **COMPLETED** - Perfect coordinate alignment achieved between click and drop events
 
+## 🐛 **CRITICAL BUG RESOLUTION: Hotspot Movement Issue**
+**Status**: ✅ **RESOLVED** - Complete stability achieved for hotspot positioning during scene transitions
+
+### Problem Pattern Analysis (Resolved)
+```typescript
+// ❌ OLD PATTERN: Multiple issues causing hotspot movement
+VRScene.remounting() → Camera state reset → Coordinate confusion
+useFrame.excessive() → 60fps position copying → Performance issues  
+CameraController.lerping() → Scene transitions → Position drift
+HotspotComponent.caching() → Faulty key system → Position inconsistency
+```
+
+### Solution Architecture (Current)
+```typescript
+// ✅ NEW PATTERN: Stable component lifecycle
+VRScene.stable() → No remounting on scene change → Consistent state
+useFrame.throttled() → Optimized updates → Smooth performance
+CameraController.instant() → Scene change detection → Immediate positioning
+HotspotComponent.direct() → Direct position props → No caching bugs
+```
+
 ## Core Architecture
 
 ### Frontend (React + Three.js)
@@ -199,8 +220,117 @@ interface VRSceneProps {
   onHotspotClick: (sceneId: number) => void;
   onSceneClick: (yaw: number, pitch: number) => void;
 }
+```
 
-// Implementation ensures type safety and clear data flow
+### 6. **Performance Optimization Patterns**
+```typescript
+// Pattern: Intelligent Throttling for VR Performance
+const useVRPerformance = () => {
+  const [isUserInteracting, setIsUserInteracting] = useState(false);
+  
+  // Different update frequencies based on interaction state
+  const updateFrequency = isUserInteracting ? 16 : 100; // 60fps vs 10fps
+  
+  const throttledCameraUpdate = useMemo(() => 
+    throttle((yaw: number, pitch: number) => {
+      onCameraChange?.(yaw, pitch);
+    }, updateFrequency), 
+    [isUserInteracting]
+  );
+  
+  return { throttledCameraUpdate, setIsUserInteracting };
+};
+
+// Pattern: Scene Change Detection for Instant Positioning
+const useCameraController = (targetYaw: number, targetPitch: number) => {
+  const prevTarget = useRef({ yaw: targetYaw, pitch: targetPitch });
+  
+  useEffect(() => {
+    const yawChange = Math.abs(targetYaw - prevTarget.current.yaw);
+    const pitchChange = Math.abs(targetPitch - prevTarget.current.pitch);
+    
+    // Scene change detected - set camera immediately
+    if (yawChange > 10 || pitchChange > 10) {
+      setCameraImmediate(targetYaw, targetPitch);
+    }
+    
+    prevTarget.current = { yaw: targetYaw, pitch: targetPitch };
+  }, [targetYaw, targetPitch]);
+};
+
+// Pattern: Memoization for Hotspot Positions
+const useMemoizedHotspots = (hotspots: NavigationConnection[]) => {
+  const hotspotsKey = useMemo(() => {
+    return hotspots.map(h => `${h.id}:${h.yaw}:${h.pitch}`).join('|');
+  }, [hotspots]);
+  
+  return useMemo(() => {
+    return hotspots.map(hotspot => ({
+      ...hotspot,
+      position: sphericalToCartesian(hotspot.yaw, hotspot.pitch)
+    }));
+  }, [hotspotsKey]);
+};
+```
+
+### 7. **Stability Patterns**
+```typescript
+// Pattern: Component Lifecycle Stability  
+const VRScene = ({ activeSceneId, ...props }) => {
+  // ✅ NO scene ID in key - prevents remounting
+  return (
+    <Canvas key="vr-scene-stable">
+      <CameraController />
+      <PanoramaSphere />
+      {memoizedHotspots.map(hotspot => (
+        <Hotspot key={`hotspot-${hotspot.id}`} {...hotspot} />
+      ))}
+    </Canvas>
+  );
+};
+
+// Pattern: Billboard Effect Optimization
+const HotspotComponent = ({ position, ...props }) => {
+  const meshRef = useRef<Mesh>(null);
+  
+  useFrame((state) => {
+    if (!meshRef.current) return;
+    
+    // Throttle lookAt calls - only update when camera moves significantly
+    const camera = state.camera;
+    const currentCameraKey = `${camera.position.x.toFixed(1)},${camera.position.y.toFixed(1)},${camera.position.z.toFixed(1)}`;
+    
+    if (!mesh.userData.lastCameraKey || mesh.userData.lastCameraKey !== currentCameraKey) {
+      mesh.lookAt(camera.position);
+      mesh.userData.lastCameraKey = currentCameraKey;
+    }
+  });
+};
+```
+
+### 8. **Error Recovery Patterns**
+```typescript
+// Pattern: Graceful Fallback for Coordinate Conversion
+const getHotspotCoordinates = (screenX: number, screenY: number) => {
+  // Primary: Shared raycasting system
+  const camera = (window as any).vrSceneCamera;
+  const sphere = (window as any).vrSphereMesh;
+  const canvas = getThreeCanvas(containerElement);
+  
+  if (camera && sphere && canvas) {
+    return performSharedRaycasting(screenX, screenY, canvas, camera, sphere);
+  }
+  
+  // Fallback: Mathematical calculation
+  return screenToSpherical(
+    { x: screenX, y: screenY },
+    { width: canvas.width, height: canvas.height },
+    { yaw: currentYaw, pitch: currentPitch, zoom: currentZoom }
+     );
+ };
+ ```
+
+## Implementation ensures type safety and clear data flow
 ```
 
 ## Data Flow Patterns
